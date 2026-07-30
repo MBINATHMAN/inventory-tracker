@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventory Stock & Operations Tracker</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #111111;
+      --text-secondary: #555555;
+      --text-tertiary: #888888;
+      --border: #e0e0e0;
+      --border-divider: #f0f0f0;
+      --surface: #fafafa;
+      --surface-hover: #f5f5f5;
+      --danger: #dc2626;
+      --positive: #16a34a;
+      --accent-blue: #2563eb;
+      --accent-purple: #7c3aed;
+      --accent-orange: #ea580c;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f0f0f;
+        --text: #f0f0f0;
+        --text-secondary: #aaaaaa;
+        --text-tertiary: #666666;
+        --border: #333333;
+        --border-divider: #222222;
+        --surface: #1a1a1a;
+        --surface-hover: #222222;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: var(--surface);
+    }
+    .stat-label { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+    .stat-value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search-input {
+      flex: 1;
+      min-width: 200px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      outline: none;
+      font-size: 14px;
+    }
+    .search-input:focus { border-color: var(--text); }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .btn-primary:hover { opacity: 0.85; background: var(--text); }
+    .btn-danger { color: var(--danger); border-color: var(--danger); }
+    .btn-danger:hover { background: rgba(220,38,38,0.08); }
+    .btn-sm { padding: 4px 8px; font-size: 12px; }
+    .printer-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .printer-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+    .printer-dot.connected { background: var(--positive); }
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--bg);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    th:hover { color: var(--text); }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border-divider); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover { background: var(--surface-hover); }
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-tertiary); }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 24px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
+      transform: translateY(10px); transition: transform 0.2s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal h2 { margin: 0 0 16px; font-size: 18px; font-weight: 600; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--bg); color: var(--text);
+      box-sizing: border-box; font-size: 14px;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--text); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .sort-icon::after { content: "↕"; margin-left: 4px; opacity: 0.3; font-size: 10px; }
+    .sort-icon.asc::after { content: "↑"; opacity: 1; }
+    .sort-icon.desc::after { content: "↓"; opacity: 1; }
+    .item-name { font-weight: 600; }
+    .item-model { font-size: 12px; color: var(--text-secondary); }
+    .item-sku { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); }
+    .price { font-variant-numeric: tabular-nums; }
+    .carton-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+    .order-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-divider); }
+    .order-item:last-child { border-bottom: none; }
+    .order-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--text); cursor: pointer; }
+    .order-item-info { flex: 1; }
+    .order-item-name { font-weight: 500; font-size: 14px; }
+    .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
+    .order-qty { width: 75px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-variant-numeric: tabular-nums; }
+    .order-qty:focus { outline: none; border-color: var(--text); }
+    .order-total { font-size: 16px; font-weight: 600; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); text-align: right; }
+    .order-list { max-height: 320px; overflow-y: auto; margin: 12px 0; }
+    .stock-info-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    @media (max-width: 640px) {
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      th, td { padding: 8px; font-size: 13px; }
+      .row-actions { opacity: 1; }
+      .modal { max-width: 95%; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Multi-Location Inventory Management</h1>
+      <div class="header-actions">
+        <div class="printer-status">
+          <span class="printer-dot" id="printer-dot"></span>
+          <span id="printer-label">Printer: Disconnected</span>
+        </div>
+        <button class="btn" onclick="connectPrinter()">🔌 Connect Printer</button>
+        <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
+        <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total items</div>
+        <div class="stat-value" id="stat-total">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Value</div>
+        <div class="stat-value" id="stat-value">KSh 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Warehouse Stock</div>
+        <div class="stat-value" id="stat-wh" style="color:var(--accent-blue);">0 ctns</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Shop Floor Stock</div>
+        <div class="stat-value" id="stat-shop" style="color:var(--accent-purple);">0 ctns</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" class="search-input" id="search" placeholder="Search by name, model, SKU, category, or supplier..." oninput="render()">
+      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="recoverAllPreviousData()">🔍 Recover Missing Products</button>
+      <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
+      <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
+      <button class="btn" onclick="openOrderModal()">Create PO Order</button>
+      <button class="btn" onclick="exportCSV()">Export CSV</button>
+    </div>
+
+    <div class="table-wrap">
+      <table id="inventory-table">
+        <thead>
+          <tr>
+            <th onclick="sortBy('name')" class="sort-icon" data-col="name">Item</th>
+            <th onclick="sortBy('category')" class="sort-icon" data-col="category">Category</th>
+            <th>Warehouse Balance</th>
+            <th>Shop Balance</th>
+            <th onclick="sortBy('price')" class="sort-icon" data-col="price">Unit price</th>
+            <th style="width: 220px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty-state" id="empty" style="display:none;">
+        <p>No items found. Add your first product to get started or click "Recover Missing Products".</p>
+      </div>
+    </div>
+
+    <!-- Modal Single Item Add/Edit -->
+    <div class="modal-overlay" id="modal">
+      <div class="modal">
+        <h2 id="modal-title">Add single item</h2>
+        <form id="item-form" onsubmit="saveItem(event)">
+          <input type="hidden" id="edit-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Item name</label>
+              <input type="text" id="f-name" required oninput="autoSKU()">
+            </div>
+            <div class="form-group">
+              <label>Model</label>
+              <input type="text" id="f-model" placeholder="e.g. MX-2024-BLK">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>SKU <span style="font-weight:400;color:var(--text-tertiary);">(auto-generated)</span></label>
+              <input type="text" id="f-sku" required>
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <input type="text" id="f-category" list="cat-list" required oninput="autoSKU()">
+              <datalist id="cat-list"></datalist>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Qty per carton</label>
+              <input type="number" id="f-qtyPerCarton" min="1" value="1">
+            </div>
+            <div class="form-group">
+              <label>Unit Label</label>
+              <input type="text" id="f-unit" placeholder="pcs, kg, box..." required value="pcs">
+            </div>
+          </div>
+
+          <div class="form-row" id="initial-stock-section">
+            <div class="form-group">
+              <label>Receiving Location</label>
+              <select id="f-initialLoc">
+                <option value="warehouse">🏭 Warehouse</option>
+                <option value="shop">🏬 Shop Store</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Initial Cartons Received</label>
+              <input type="number" id="f-initialCartons" min="0" value="0">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Min Stock Threshold (Cartons)</label>
+              <input type="number" id="f-min" min="0" required value="2">
+            </div>
+            <div class="form-group">
+              <label>Unit price (KSh)</label>
+              <input type="number" id="f-price" min="0" step="0.01" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Supplier</label>
+            <input type="text" id="f-supplier" list="supplier-list" placeholder="Start typing supplier name...">
+            <datalist id="supplier-list"></datalist>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Item</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Bulk Supplier Receive Modal -->
+    <div class="modal-overlay" id="bulk-receive-modal">
+      <div class="modal">
+        <h2>📦 Receive Supplier Shipment</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:600;">Select Supplier</label>
+            <select id="receive-supplier-select" onchange="renderBulkReceiveItems()">
+              <option value="">-- Choose Supplier --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:600;">Receiving Destination</label>
+            <select id="rec-destination">
+              <option value="warehouse">🏭 Warehouse</option>
+              <option value="shop">🏬 Shop Store</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Invoice / Waybill No. <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></label>
+            <input type="text" id="rec-invoice-no" placeholder="e.g. INV-98214">
+          </div>
+          <div class="form-group">
+            <label>Delivery Date</label>
+            <input type="date" id="rec-delivery-date">
+          </div>
+        </div>
+
+        <p style="font-size:12px; color:var(--text-tertiary); margin-bottom:12px;">
+          Enter new stock amounts received for each item below.
+        </p>
+        <div class="order-list" id="bulk-receive-items"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="processBulkReceive()">Receive Stock</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Internal Transfer Modal (Warehouse <-> Shop) -->
+    <div class="modal-overlay" id="transfer-modal">
+      <div class="modal">
+        <h2>🔄 Transfer Stock Between Warehouse & Shop</h2>
+        <div class="stock-info-box" id="transfer-info"></div>
+        <form id="transfer-form" onsubmit="processTransfer(event)">
+          <input type="hidden" id="transfer-id">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label>Transfer Direction</label>
+              <select id="transfer-route" onchange="updateTransferInfo()">
+                <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Store</option>
+                <option value="shop_to_wh">🏬 Shop Store ➔ 🏭 Warehouse</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Deduct Unit</label>
+              <select id="transfer-unit-mode" onchange="updateTransferLabel()">
+                <option value="cartons">Cartons</option>
+                <option value="pcs">Pieces / Units</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Waybill / Transfer Note No. <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></label>
+              <input type="text" id="transfer-delivery-no" placeholder="e.g. TR-2026-088">
+            </div>
+            <div class="form-group">
+              <label>Transfer Date</label>
+              <input type="date" id="transfer-date" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label id="transfer-qty-label">Quantity to Move</label>
+            <input type="number" id="transfer-input-val" min="1" required placeholder="Enter quantity">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Execute Internal Transfer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Direct Client Delivery / Supply Modal -->
+    <div class="modal-overlay" id="dispatch-modal">
+      <div class="modal">
+        <h2>🚚 Supply Goods to Client / Order Dispatch</h2>
+        <div class="stock-info-box" id="dispatch-info"></div>
+        <form id="dispatch-form" onsubmit="processDispatch(event)">
+          <input type="hidden" id="dispatch-id">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Supply From (Source Stock)</label>
+              <select id="dispatch-source" onchange="updateDispatchInfo()">
+                <option value="warehouse">🏭 Warehouse Stock</option>
+                <option value="shop">🏬 Shop Floor Stock</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Deduct Unit</label>
+              <select id="dispatch-unit-mode" onchange="updateDispatchLabel()">
+                <option value="cartons">Cartons</option>
+                <option value="pcs">Pieces / Units</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Delivery Note / Receipt No. <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></label>
+              <input type="text" id="dispatch-delivery-no" placeholder="e.g. DN-2026-992">
+            </div>
+            <div class="form-group">
+              <label>Dispatch Date</label>
+              <input type="date" id="dispatch-date" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Client / Recipient Name</label>
+            <input type="text" id="dispatch-client" required placeholder="e.g. ABC Wholesale Ltd, John Doe, Retail Customer">
+          </div>
+
+          <div class="form-group">
+            <label id="dispatch-qty-label">Quantity Dispatched</label>
+            <input type="number" id="dispatch-input-val" min="1" required placeholder="Enter quantity">
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeDispatchModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Deduct & Dispatch Order</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Movement Audit Log Modal -->
+    <div class="modal-overlay" id="audit-modal">
+      <div class="modal" style="max-width: 880px;">
+        <h2>📜 Stock Movement Audit Log</h2>
+        <p style="font-size:12px; color:var(--text-tertiary);">Track all receipts, transfers, and client deliveries.</p>
+        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin: 12px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background: var(--surface);">
+                <th style="padding: 8px;">Date</th>
+                <th style="padding: 8px;">Action</th>
+                <th style="padding: 8px;">Doc / Ref</th>
+                <th style="padding: 8px;">Item Name</th>
+                <th style="padding: 8px;">Qty</th>
+                <th style="padding: 8px;">Source / Destination</th>
+              </tr>
+            </thead>
+            <tbody id="audit-log-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="exportAuditLogCSV()">📄 Export Log CSV</button>
+          <button type="button" class="btn" onclick="closeAuditLogModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stock Take Modal -->
+    <div class="modal-overlay" id="stocktake-modal">
+      <div class="modal">
+        <h2>📋 Physical Stock Take</h2>
+        
+        <div class="form-row" style="margin-bottom:12px;">
+          <div class="form-group">
+            <label style="font-weight:600;">Counting Location</label>
+            <select id="stocktake-location" onchange="renderStockTakeItems()">
+              <option value="warehouse">🏭 Warehouse</option>
+              <option value="shop">🏬 Shop Store</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:600;">Filter Supplier</label>
+            <select id="stocktake-supplier" onchange="renderStockTakeItems()">
+              <option value="">-- All Suppliers --</option>
+            </select>
+          </div>
+        </div>
+
+        <p style="font-size:12px; color:var(--text-tertiary); margin-bottom:12px;">
+          Enter actual physical counts for the selected location below.
+        </p>
+        <div class="order-list" id="stocktake-items"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="exportStockTakeForm()">📄 Export Sheet CSV</button>
+          <button type="button" class="btn" onclick="closeStockTakeModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveStockTake()">Save Count</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Purchase Order Modal -->
+    <div class="modal-overlay" id="order-modal">
+      <div class="modal">
+        <h2>Create purchase order</h2>
+        <div class="form-group">
+          <label>Select supplier</label>
+          <select id="order-supplier" onchange="renderOrderItems()">
+            <option value="">-- Choose a supplier --</option>
+          </select>
+        </div>
+        <div id="order-items-wrap" style="display:none;">
+          <div class="order-list" id="order-items"></div>
+          <div class="order-total" id="order-total">Order total: KSh 0.00</div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeOrderModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="exportOrder()">Export order CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CURRENT_STORAGE_KEY = 'inv_tracker_v5_full';
+    const LOG_STORAGE_KEY = 'inv_movement_logs_v3';
+    
+    let items = [];
+    let auditLogs = [];
+    let sortCol = 'name';
+    let sortDir = 'asc';
+    let skuEdited = false;
+    let printerPort = null;
+    let printerWriter = null;
+
+    function recoverAllPreviousData() {
+      let foundItems = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('inv_tracker') || key.includes('inventory'))) {
+          try {
+            const rawData = localStorage.getItem(key);
+            const parsed = JSON.parse(rawData);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(item => {
+                if (item && item.name) {
+                  const normalizedItem = {
+                    id: item.id || (Date.now() + Math.random()),
+                    name: item.name,
+                    model: item.model || '',
+                    sku: item.sku || 'SKU-000',
+                    category: item.category || 'General',
+                    qtyPerCarton: item.qtyPerCarton || 1,
+                    whCartons: item.whCartons !== undefined ? item.whCartons : (item.cartons || Math.ceil((item.qty || 0) / (item.qtyPerCarton || 1))),
+                    shopCartons: item.shopCartons !== undefined ? item.shopCartons : 0,
+                    unit: item.unit || 'pcs',
+                    min: item.min || 2,
+                    price: item.price || 0,
+                    supplier: item.supplier || ''
+                  };
+                  
+                  const exists = foundItems.some(f => f.name.toLowerCase() === normalizedItem.name.toLowerCase() && f.sku === normalizedItem.sku);
+                  if (!exists) {
+                    foundItems.push(normalizedItem);
+                  }
+                }
+              });
+            }
+          } catch(e) {}
+        }
+      }
+
+      if (foundItems.length > 0) {
+        items = foundItems;
+        save();
+        updateCatList();
+        updateSupplierList();
+        render();
+        alert(`Successfully recovered ${foundItems.length} product(s) from your browser history!`);
+      } else {
+        alert("No previous saved data was found in this browser context.");
+      }
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(CURRENT_STORAGE_KEY);
+        if (raw) {
+          items = JSON.parse(raw);
+        } else {
+          recoverAllPreviousData();
+        }
+
+        const rawLogs = localStorage.getItem(LOG_STORAGE_KEY);
+        if (rawLogs) auditLogs = JSON.parse(rawLogs);
+      } catch(e) {}
+
+      if (!items.length) {
+        items = [
+          {id:1, name:'ACME TRINA OPEN BUCKET 10LTR', model:'10L-OPEN-BKT', sku:'KIT-BUK-100', category:'Kitchen', qtyPerCarton:12, whCartons:5, shopCartons:2, unit:'pcs', min:2, price:100, supplier:'AcmePlastics'},
+          {id:2, name:'Wireless mouse', model:'MX-2024-BLK', sku:'ELE-WIR-482', category:'Electronics', qtyPerCarton:1, whCartons:40, shopCartons:20, unit:'pcs', min:2, price:2499, supplier:'TechCorp'}
+        ];
+        save();
+      }
+      updateCatList();
+      updateSupplierList();
+      render();
+    }
+
+    function save() { 
+      localStorage.setItem(CURRENT_STORAGE_KEY, JSON.stringify(items)); 
+      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(auditLogs)); 
+    }
+
+    function logMovement(action, refNo, date, itemName, qty, route) {
+      auditLogs.unshift({
+        id: Date.now() + Math.random(),
+        action: action, 
+        refNo: refNo || 'N/A',
+        date: date,
+        itemName: itemName,
+        qty: qty,
+        route: route
+      });
+      save();
+    }
+
+    async function connectPrinter() {
+      if (!('serial' in navigator)) { alert('Web Serial not supported in this browser.'); return; }
+      try {
+        printerPort = await navigator.serial.requestPort();
+        await printerPort.open({ baudRate: 9600 });
+        const textEncoder = new TextEncoderStream();
+        textEncoder.readable.pipeTo(printerPort.writable);
+        printerWriter = textEncoder.writable.getWriter();
+        document.getElementById('printer-dot').classList.add('connected');
+        document.getElementById('printer-label').textContent = 'Printer: Connected';
+        alert('Connected to ComStore Thermal Printer!');
+      } catch (err) { alert('Printer connection error: ' + err.message); }
+    }
+
+    async function printLabel(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      if (!printerWriter) {
+        if (confirm('Printer not connected. Connect now?')) await connectPrinter();
+        if (!printerWriter) return;
+      }
+      const labelCount = prompt(`How many labels for "${item.name}"?`, "2");
+      const count = parseInt(labelCount) || 0;
+      if (count <= 0) return;
+
+      const sets = Math.ceil(count / 2);
+      const cleanName = item.name.replace(/"/g, '').replace(/'/g, '').toUpperCase();
+      const formattedPrice = `${Math.round(item.price)}/-`;
+      let line1 = cleanName.slice(0, 15);
+      let line2 = cleanName.length > 15 ? cleanName.slice(15, 30) : "";
+
+      const tsplCommand = 
+`SIZE 56 mm, 27 mm
+GAP 2 mm, 0 mm
+REFERENCE 0,0
+DIRECTION 1
+CLS
+TEXT 15,10,"2",0,1,1,"BIN ATHMAN HOUSEHOLD"
+TEXT 65,30,"2",0,1,1,"STORE"
+TEXT 10,60,"2",0,1,1,"${line1}"
+TEXT 10,80,"2",0,1,1,"${line2}"
+TEXT 35,110,"4",0,1,1,"${formattedPrice}"
+TEXT 245,10,"2",0,1,1,"BIN ATHMAN HOUSEHOLD"
+TEXT 295,30,"2",0,1,1,"STORE"
+TEXT 240,60,"2",0,1,1,"${line1}"
+TEXT 240,80,"2",0,1,1,"${line2}"
+TEXT 265,110,"4",0,1,1,"${formattedPrice}"
+PRINT ${sets},1
+`;
+      try {
+        await printerWriter.write(tsplCommand);
+        alert(`Printed ${count} label(s)!`);
+      } catch (err) { alert('Printing error: ' + err.message); }
+    }
+
+    function updateCatList() {
+      const cats = [...new Set(items.map(i => i.category))];
+      document.getElementById('cat-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+    }
+
+    function updateSupplierList() {
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      document.getElementById('supplier-list').innerHTML = suppliers.map(s => `<option value="${escapeHtml(s)}">`).join('');
+    }
+
+    function escapeHtml(t) {
+      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    }
+
+    function slugify(str, len) { return str.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, len); }
+
+    function autoSKU() {
+      if (skuEdited) return;
+      const name = document.getElementById('f-name').value.trim();
+      const cat = document.getElementById('f-category').value.trim();
+      if (name && cat) {
+        document.getElementById('f-sku').value = `${slugify(cat,3)}-${slugify(name,3)}-${Math.floor(100 + Math.random() * 900)}`;
+      }
+    }
+
+    /* Bulk Receive Supplier Modal */
+    function openBulkReceiveModal() {
+      document.getElementById('bulk-receive-modal').classList.add('open');
+      document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
+      document.getElementById('rec-invoice-no').value = '';
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      document.getElementById('bulk-receive-items').innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">Select a supplier to see items.</p>';
+    }
+
+    function closeBulkReceiveModal() { document.getElementById('bulk-receive-modal').classList.remove('open'); }
+
+    function renderBulkReceiveItems() {
+      const supplier = document.getElementById('receive-supplier-select').value;
+      const container = document.getElementById('bulk-receive-items');
+      if (!supplier) { container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">Select a supplier to see items.</p>'; return; }
+      const supplierItems = items.filter(i => i.supplier === supplier);
+      if (!supplierItems.length) { container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">No registered items for this supplier.</p>'; return; }
+
+      container.innerHTML = supplierItems.map(it => `
+        <div class="order-item">
+          <div class="order-item-info">
+            <div class="order-item-name">${escapeHtml(it.name)}</div>
+            <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:12px; color:var(--text-tertiary);">+ Add Cartons:</span>
+            <input type="number" class="order-qty" id="rec-${it.id}" value="0" min="0">
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function processBulkReceive() {
+      const supplier = document.getElementById('receive-supplier-select').value;
+      const dest = document.getElementById('rec-destination').value;
+      const invoiceNo = document.getElementById('rec-invoice-no').value.trim() || 'N/A';
+      const deliveryDate = document.getElementById('rec-delivery-date').value || new Date().toISOString().split('T')[0];
+
+      if (!supplier) { alert('Choose a supplier.'); return; }
+      const supplierItems = items.filter(i => i.supplier === supplier);
+      let count = 0;
+
+      supplierItems.forEach(it => {
+        const input = document.getElementById(`rec-${it.id}`);
+        if (input) {
+          const addVal = parseInt(input.value) || 0;
+          if (addVal > 0) {
+            count++;
+            if (dest === 'warehouse') {
+              it.whCartons += addVal;
+              logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Warehouse`);
+            } else {
+              it.shopCartons += addVal;
+              logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Shop Store`);
+            }
+          }
+        }
+      });
+
+      if (count === 0) { alert('No quantities entered.'); return; }
+      save(); closeBulkReceiveModal(); render();
+      alert(`Received delivery for ${count} item(s) into ${dest.toUpperCase()}!`);
+    }
+
+    /* Internal Location Transfer Modal */
+    function openTransferModal(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      document.getElementById('transfer-id').value = item.id;
+      document.getElementById('transfer-input-val').value = '';
+      document.getElementById('transfer-delivery-no').value = '';
+      document.getElementById('transfer-date').value = new Date().toISOString().split('T')[0];
+      
+      updateTransferInfo();
+      document.getElementById('transfer-modal').classList.add('open');
+    }
+
+    function updateTransferInfo() {
+      const id = parseInt(document.getElementById('transfer-id').value);
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+
+      const route = document.getElementById('transfer-route').value;
+      const srcText = route === 'wh_to_shop' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
+      
+      document.getElementById('transfer-info').innerHTML = `
+        <strong>${escapeHtml(item.name)}</strong><br>
+        Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
+      `;
+      updateTransferLabel();
+    }
+
+    function updateTransferLabel() {
+      const mode = document.getElementById('transfer-unit-mode').value;
+      const id = parseInt(document.getElementById('transfer-id').value);
+      const item = items.find(i => i.id === id);
+      document.getElementById('transfer-qty-label').textContent = mode === 'cartons' ? 'Cartons to Transfer' : `Pieces (${item ? item.unit : 'pcs'}) to Transfer`;
+    }
+
+    function closeTransferModal() { document.getElementById('transfer-modal').classList.remove('open'); }
+
+    function processTransfer(e) {
+      e.preventDefault();
+      const id = parseInt(document.getElementById('transfer-id').value);
+      const val = parseInt(document.getElementById('transfer-input-val').value) || 0;
+      const route = document.getElementById('transfer-route').value;
+      const delNo = document.getElementById('transfer-delivery-no').value.trim() || 'N/A';
+      const date = document.getElementById('transfer-date').value;
+      const mode = document.getElementById('transfer-unit-mode').value;
+      
+      const item = items.find(i => i.id === id);
+      if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
+
+      let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+
+      if (route === 'wh_to_shop') {
+        if (cartonsToDeduct > item.whCartons) { alert(`Insufficient warehouse stock! Max: ${item.whCartons} ctns`); return; }
+        item.whCartons -= cartonsToDeduct;
+        item.shopCartons += cartonsToDeduct;
+        logMovement('TRANSFER', delNo, date, item.name, `${val} ${mode}`, 'Warehouse ➔ Shop');
+      } else {
+        if (cartonsToDeduct > item.shopCartons) { alert(`Insufficient shop stock! Max: ${item.shopCartons} ctns`); return; }
+        item.shopCartons -= cartonsToDeduct;
+        item.whCartons += cartonsToDeduct;
+        logMovement('TRANSFER', delNo, date, item.name, `${val} ${mode}`, 'Shop ➔ Warehouse');
+      }
+
+      save(); closeTransferModal(); render();
+      alert('Transfer completed successfully!');
+    }
+
+    /* Outbound Client Dispatch / Sale Modal */
+    function openDispatchModal(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+
+      document.getElementById('dispatch-id').value = item.id;
+      document.getElementById('dispatch-input-val').value = '';
+      document.getElementById('dispatch-delivery-no').value = '';
+      document.getElementById('dispatch-client').value = '';
+      document.getElementById('dispatch-date').value = new Date().toISOString().split('T')[0];
+
+      updateDispatchInfo();
+      document.getElementById('dispatch-modal').classList.add('open');
+    }
+
+    function updateDispatchInfo() {
+      const id = parseInt(document.getElementById('dispatch-id').value);
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+
+      const src = document.getElementById('dispatch-source').value;
+      const srcText = src === 'warehouse' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
+
+      document.getElementById('dispatch-info').innerHTML = `
+        <strong>${escapeHtml(item.name)}</strong><br>
+        Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
+      `;
+      updateDispatchLabel();
+    }
+
+    function updateDispatchLabel() {
+      const mode = document.getElementById('dispatch-unit-mode').value;
+      const id = parseInt(document.getElementById('dispatch-id').value);
+      const item = items.find(i => i.id === id);
+      document.getElementById('dispatch-qty-label').textContent = mode === 'cartons' ? 'Cartons Dispatched' : `Pieces (${item ? item.unit : 'pcs'}) Dispatched`;
+    }
+
+    function closeDispatchModal() { document.getElementById('dispatch-modal').classList.remove('open'); }
+
+    function processDispatch(e) {
+      e.preventDefault();
+      const id = parseInt(document.getElementById('dispatch-id').value);
+      const val = parseInt(document.getElementById('dispatch-input-val').value) || 0;
+      const src = document.getElementById('dispatch-source').value;
+      const delNo = document.getElementById('dispatch-delivery-no').value.trim() || 'N/A';
+      const client = document.getElementById('dispatch-client').value.trim() || 'Client';
+      const date = document.getElementById('dispatch-date').value;
+      const mode = document.getElementById('dispatch-unit-mode').value;
+
+      const item = items.find(i => i.id === id);
+      if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
+
+      let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+
+      if (src === 'warehouse') {
+        if (cartonsToDeduct > item.whCartons) { alert(`Insufficient warehouse stock! Max: ${item.whCartons} ctns`); return; }
+        item.whCartons -= cartonsToDeduct;
+        logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Warehouse ➔ Client (${client})`);
+      } else {
+        if (cartonsToDeduct > item.shopCartons) { alert(`Insufficient shop stock! Max: ${item.shopCartons} ctns`); return; }
+        item.shopCartons -= cartonsToDeduct;
+        logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Shop ➔ Client (${client})`);
+      }
+
+      save(); closeDispatchModal(); render();
+      alert(`Successfully supplied ${val} ${mode} to ${client}!`);
+    }
+
+    /* Movement Audit Log */
+    function openAuditLogModal() {
+      document.getElementById('audit-modal').classList.add('open');
+      const tbody = document.getElementById('audit-log-tbody');
+      if (!auditLogs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found.</td></tr>'; return; }
+      tbody.innerHTML = auditLogs.map(l => {
+        let badgeColor = 'var(--accent-blue)';
+        let bg = 'rgba(37,99,235,0.15)';
+        if (l.action === 'RECEIVE') { badgeColor = 'var(--positive)'; bg = 'rgba(22,163,74,0.15)'; }
+        if (l.action === 'SUPPLY_CLIENT') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
+
+        return `
+          <tr style="border-bottom:1px solid var(--border-divider);">
+            <td style="padding:8px; white-space:nowrap;">${l.date}</td>
+            <td style="padding:8px;"><span class="chip" style="font-size:10px; background:${bg}; color:${badgeColor};">${l.action}</span></td>
+            <td style="padding:8px; font-weight:600; font-family:var(--font-mono);">${escapeHtml(l.refNo)}</td>
+            <td style="padding:8px;">${escapeHtml(l.itemName)}</td>
+            <td style="padding:8px; font-weight:600;">${l.qty}</td>
+            <td style="padding:8px; color:var(--text-secondary);">${escapeHtml(l.route)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function closeAuditLogModal() { document.getElementById('audit-modal').classList.remove('open'); }
+
+    function exportAuditLogCSV() {
+      if (!auditLogs.length) { alert('No logs available.'); return; }
+      const headers = ['Date', 'Action', 'Ref No', 'Item Name', 'Quantity', 'Route / Notes'];
+      const rows = auditLogs.map(l => [l.date, l.action, l.refNo, l.itemName, l.qty, l.route]);
+      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `Stock_Logs_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    /* Stock Take Modal */
+    function openStockTakeModal() {
+      document.getElementById('stocktake-modal').classList.add('open');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      document.getElementById('stocktake-supplier').innerHTML = '<option value="">-- All Suppliers --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      renderStockTakeItems();
+    }
+
+    function renderStockTakeItems() {
+      const loc = document.getElementById('stocktake-location').value;
+      const supplier = document.getElementById('stocktake-supplier').value;
+      const container = document.getElementById('stocktake-items');
+      
+      let filtered = items;
+      if (supplier) filtered = items.filter(i => i.supplier === supplier);
+
+      container.innerHTML = filtered.map(it => {
+        const currentCartons = loc === 'warehouse' ? it.whCartons : it.shopCartons;
+        return `
+          <div class="order-item">
+            <div class="order-item-info">
+              <div class="order-item-name">${escapeHtml(it.name)}</div>
+              <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · System: ${currentCartons} Cartons (${currentCartons * it.qtyPerCarton} ${escapeHtml(it.unit)})</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <input type="number" class="order-qty" id="st-${it.id}" value="${currentCartons}" min="0">
+              <span style="font-size:12px;">Cartons</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function closeStockTakeModal() { document.getElementById('stocktake-modal').classList.remove('open'); }
+
+    function saveStockTake() {
+      const loc = document.getElementById('stocktake-location').value;
+      const supplier = document.getElementById('stocktake-supplier').value;
+      let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
+
+      targetItems.forEach(it => {
+        const input = document.getElementById(`st-${it.id}`);
+        if (input) {
+          const val = Math.max(0, parseInt(input.value) || 0);
+          if (loc === 'warehouse') it.whCartons = val;
+          else it.shopCartons = val;
+        }
+      });
+      save(); closeStockTakeModal(); render();
+      alert(`Physical count updated for ${loc.toUpperCase()}!`);
+    }
+
+    function exportStockTakeForm() {
+      const loc = document.getElementById('stocktake-location').value;
+      const supplier = document.getElementById('stocktake-supplier').value;
+      const date = new Date().toISOString().split('T')[0];
+      let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
+
+      const headers = ['SKU', 'Item Name', 'Category', 'Location', 'System Cartons', 'Physical Cartons Count'];
+      const rows = targetItems.map(i => [i.sku, i.name, i.category, loc.toUpperCase(), loc==='warehouse'?i.whCartons:i.shopCartons, '']);
+      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `StockTake_${loc}_${date}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function render() {
+      const q = document.getElementById('search').value.toLowerCase();
+      let filtered = items.filter(i =>
+        i.name.toLowerCase().includes(q) ||
+        (i.model || '').toLowerCase().includes(q) ||
+        i.sku.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q) ||
+        (i.supplier || '').toLowerCase().includes(q)
+      );
+
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty');
+      const table = document.getElementById('inventory-table');
+
+      if (!filtered.length) {
+        tbody.innerHTML = ''; empty.style.display = 'block'; table.style.display = 'none';
+      } else {
+        empty.style.display = 'none'; table.style.display = 'table';
+        tbody.innerHTML = filtered.map(it => `
+          <tr>
+            <td>
+              <div class="item-name">${escapeHtml(it.name)}</div>
+              ${it.model ? `<div class="item-model">${escapeHtml(it.model)}</div>` : ''}
+              <div class="item-sku">${escapeHtml(it.sku)}</div>
+            </td>
+            <td><span class="chip" style="background:rgba(107,114,128,0.15);">${escapeHtml(it.category)}</span></td>
+            <td>
+              <strong>${it.whCartons} Cartons</strong>
+              <div class="carton-meta">${it.whCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
+            </td>
+            <td>
+              <strong>${it.shopCartons} Cartons</strong>
+              <div class="carton-meta">${it.shopCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
+            </td>
+            <td class="price">KSh ${it.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+            <td>
+              <div class="row-actions">
+                <button class="btn btn-sm" onclick="openDispatchModal(${it.id})" title="Supply to Client">🚚 Supply</button>
+                <button class="btn btn-sm" onclick="openTransferModal(${it.id})" title="Transfer between Wh & Shop">🔄 Transfer</button>
+                <button class="btn btn-sm" onclick="printLabel(${it.id})" title="Print Label">🏷️ Print</button>
+                <button class="btn btn-sm" onclick="editItem(${it.id})">Edit</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteItem(${it.id})">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      const totalItems = items.length;
+      const totalWhCartons = items.reduce((s, i) => s + i.whCartons, 0);
+      const totalShopCartons = items.reduce((s, i) => s + i.shopCartons, 0);
+      const totalVal = items.reduce((s, i) => s + ((i.whCartons + i.shopCartons) * i.qtyPerCarton * i.price), 0);
+
+      document.getElementById('stat-total').textContent = totalItems;
+      document.getElementById('stat-value').textContent = 'KSh ' + totalVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
+      document.getElementById('stat-wh').textContent = totalWhCartons + ' ctns';
+      document.getElementById('stat-shop').textContent = totalShopCartons + ' ctns';
+    }
+
+    function sortBy(col) {
+      if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = col; sortDir = 'asc'; }
+      render();
+    }
+
+    function openModal(id) {
+      document.getElementById('modal').classList.add('open');
+      document.getElementById('item-form').reset();
+      document.getElementById('edit-id').value = '';
+      document.getElementById('modal-title').textContent = id ? 'Edit item' : 'Add single item';
+      skuEdited = false;
+      updateSupplierList();
+
+      const initSection = document.getElementById('initial-stock-section');
+
+      if (id) {
+        // Hide initial location selector when editing an existing item
+        initSection.style.display = 'none';
+        const it = items.find(i => i.id === id);
+        if (it) {
+          skuEdited = true;
+          document.getElementById('edit-id').value = it.id;
+          document.getElementById('f-name').value = it.name;
+          document.getElementById('f-model').value = it.model || '';
+          document.getElementById('f-sku').value = it.sku;
+          document.getElementById('f-category').value = it.category;
+          document.getElementById('f-qtyPerCarton').value = it.qtyPerCarton || 1;
+          document.getElementById('f-unit').value = it.unit;
+          document.getElementById('f-min').value = it.min;
+          document.getElementById('f-price').value = it.price;
+          document.getElementById('f-supplier').value = it.supplier || '';
+        }
+      } else {
+        // Show initial location selector for brand new items
+        initSection.style.display = 'grid';
+        document.getElementById('f-initialLoc').value = 'warehouse';
+        document.getElementById('f-initialCartons').value = 0;
+      }
+    }
+
+    function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+    function saveItem(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      const initialLoc = document.getElementById('f-initialLoc').value;
+      const initialCartons = parseInt(document.getElementById('f-initialCartons').value) || 0;
+
+      const data = {
+        name: document.getElementById('f-name').value.trim(),
+        model: document.getElementById('f-model').value.trim(),
+        sku: document.getElementById('f-sku').value.trim(),
+        category: document.getElementById('f-category').value.trim(),
+        qtyPerCarton: parseInt(document.getElementById('f-qtyPerCarton').value) || 1,
+        unit: document.getElementById('f-unit').value.trim(),
+        min: parseInt(document.getElementById('f-min').value) || 0,
+        price: parseFloat(document.getElementById('f-price').value) || 0,
+        supplier: document.getElementById('f-supplier').value.trim()
+      };
+
+      if (id) {
+        const idx = items.findIndex(i => i.id === parseInt(id));
+        if (idx > -1) {
+          // Preserve existing location balances when editing details
+          items[idx] = { 
+            ...items[idx], 
+            ...data 
+          };
+        }
+      } else {
+        // Assign stock to chosen location for new items
+        data.id = Date.now();
+        data.whCartons = (initialLoc === 'warehouse') ? initialCartons : 0;
+        data.shopCartons = (initialLoc === 'shop') ? initialCartons : 0;
+        items.push(data);
+
+        if (initialCartons > 0) {
+          logMovement('RECEIVE', 'INITIAL', new Date().toISOString().split('T')[0], data.name, `${initialCartons} Cartons`, `Initial Receipt ➔ ${initialLoc.toUpperCase()}`);
+        }
+      }
+
+      save(); updateCatList(); updateSupplierList(); closeModal(); render();
+    }
+
+    function editItem(id) { openModal(id); }
+    function deleteItem(id) {
+      if (confirm('Delete this item?')) {
+        items = items.filter(i => i.id !== id);
+        save(); updateCatList(); updateSupplierList(); render();
+      }
+    }
+
+    function exportCSV() {
+      const headers = ['Name','Model','SKU','Category','Qty Per Carton','Warehouse Cartons','Shop Cartons','Unit','Unit Price','Supplier'];
+      const rows = items.map(i => [i.name, i.model||'', i.sku, i.category, i.qtyPerCarton, i.whCartons, i.shopCartons, i.unit, i.price, i.supplier||'']);
+      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'inventory_wh_shop.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function openOrderModal() {
+      document.getElementById('order-modal').classList.add('open');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      document.getElementById('order-supplier').innerHTML = '<option value="">-- Choose a supplier --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      document.getElementById('order-items-wrap').style.display = 'none';
+    }
+
+    function closeOrderModal() { document.getElementById('order-modal').classList.remove('open'); }
+
+    function renderOrderItems() {
+      const supplier = document.getElementById('order-supplier').value;
+      const wrap = document.getElementById('order-items-wrap');
+      const container = document.getElementById('order-items');
+      if (!supplier) { wrap.style.display = 'none'; return; }
+      const supplierItems = items.filter(i => i.supplier === supplier);
+      if (!supplierItems.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = 'block';
+      container.innerHTML = supplierItems.map(it => {
+        const totalCartons = it.whCartons + it.shopCartons;
+        const suggestQty = Math.max(it.min - totalCartons, 1) * it.qtyPerCarton;
+        return `
+        <div class="order-item">
+          <input type="checkbox" id="chk-${it.id}" onchange="calcOrderTotal()" checked>
+          <div class="order-item-info">
+            <div class="order-item-name">${escapeHtml(it.name)}</div>
+            <div class="order-item-meta">${escapeHtml(it.sku)} · Total Stock: ${totalCartons} ctns · KSh ${it.price}</div>
+          </div>
+          <input type="number" class="order-qty" id="qty-${it.id}" value="${suggestQty}" min="1" onchange="calcOrderTotal()">
+        </div>
+      `}).join('');
+      calcOrderTotal();
+    }
+
+    function calcOrderTotal() {
+      let total = 0;
+      items.forEach(it => {
+        const chk = document.getElementById('chk-' + it.id);
+        const qty = document.getElementById('qty-' + it.id);
+        if (chk && chk.checked && qty) total += it.price * (parseInt(qty.value) || 0);
+      });
+      document.getElementById('order-total').textContent = 'Order total: KSh ' + total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function exportOrder() {
+      const supplier = document.getElementById('order-supplier').value;
+      if (!supplier) { alert('Select supplier.'); return; }
+      const date = new Date().toISOString().split('T')[0];
+      const orderId = 'PO-' + date.replace(/-/g,'') + '-' + Math.floor(Math.random()*1000);
+      const rows = [];
+      let total = 0;
+      items.forEach(it => {
+        const chk = document.getElementById('chk-' + it.id);
+        const qty = document.getElementById('qty-' + it.id);
+        if (chk && chk.checked && qty) {
+          const q = parseInt(qty.value) || 0;
+          const lineTotal = it.price * q;
+          total += lineTotal;
+          rows.push([it.name, it.model||'', it.sku, it.price.toFixed(2), q, lineTotal.toFixed(2)]);
+        }
+      });
+      const csvLines = [`"Purchase Order","${supplier}","${date}","${orderId}"`, '', '"Item","Model","SKU","Unit Price","Qty","Total"', ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')), '', ` "Order total",,,,,"${total.toFixed(2)}"`];
+      const blob = new Blob([csvLines.join('\n')], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `${orderId}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+    document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
+    document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
+    document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
+    document.getElementById('transfer-modal').addEventListener('click', e => { if (e.target === document.getElementById('transfer-modal')) closeTransferModal(); });
+    document.getElementById('dispatch-modal').addEventListener('click', e => { if (e.target === document.getElementById('dispatch-modal')) closeDispatchModal(); });
+    document.getElementById('order-modal').addEventListener('click', e => { if (e.target === document.getElementById('order-modal')) closeOrderModal(); });
+
+    load();
+  </script>
+</body>
+</html>
