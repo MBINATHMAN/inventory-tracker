@@ -104,7 +104,7 @@
     .btn-danger { color: var(--danger); border-color: var(--danger); }
     .btn-danger:hover { background: rgba(220,38,38,0.08); }
     .btn-sm { padding: 4px 8px; font-size: 12px; }
-    .printer-status {
+    .status-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -114,8 +114,8 @@
       border: 1px solid var(--border);
       background: var(--surface);
     }
-    .printer-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
-    .printer-dot.connected { background: var(--positive); }
+    .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+    .badge-dot.connected { background: var(--positive); }
     .table-wrap {
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -170,38 +170,19 @@
     .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--text); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-    .sort-icon::after { content: "↕"; margin-left: 4px; opacity: 0.3; font-size: 10px; }
-    .sort-icon.asc::after { content: "↑"; opacity: 1; }
-    .sort-icon.desc::after { content: "↓"; opacity: 1; }
     .item-name { font-weight: 600; }
     .item-model { font-size: 12px; color: var(--text-secondary); }
     .item-sku { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); }
     .price { font-variant-numeric: tabular-nums; }
     .carton-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
     .order-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-divider); }
-    .order-item:last-child { border-bottom: none; }
-    .order-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--text); cursor: pointer; }
     .order-item-info { flex: 1; }
     .order-item-name { font-weight: 500; font-size: 14px; }
     .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
-    .order-qty { width: 75px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-variant-numeric: tabular-nums; }
-    .order-qty:focus { outline: none; border-color: var(--text); }
+    .order-qty { width: 75px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; }
     .order-total { font-size: 16px; font-weight: 600; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); text-align: right; }
     .order-list { max-height: 320px; overflow-y: auto; margin: 12px 0; }
-    .stock-info-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
-      font-size: 13px;
-    }
-    @media (max-width: 640px) {
-      .stats-row { grid-template-columns: 1fr 1fr; }
-      th, td { padding: 8px; font-size: 13px; }
-      .row-actions { opacity: 1; }
-      .modal { max-width: 95%; padding: 16px; }
-    }
+    .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -209,11 +190,10 @@
     <div class="header">
       <h1>Multi-Location Inventory Management</h1>
       <div class="header-actions">
-        <div class="printer-status">
-          <span class="printer-dot" id="printer-dot"></span>
-          <span id="printer-label">Printer: Disconnected</span>
+        <div class="status-badge">
+          <span class="badge-dot" id="sync-dot"></span>
+          <span id="sync-label">Cloud Sync: Connecting...</span>
         </div>
-        <button class="btn" onclick="connectPrinter()">🔌 Connect Printer</button>
         <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
         <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
       </div>
@@ -240,7 +220,8 @@
 
     <div class="toolbar">
       <input type="text" class="search-input" id="search" placeholder="Search by name, model, SKU, category, or supplier..." oninput="render()">
-      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="recoverAllPreviousData()">🔍 Recover Missing Products</button>
+      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
+      <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
       <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
       <button class="btn" onclick="openOrderModal()">Create PO Order</button>
@@ -251,18 +232,18 @@
       <table id="inventory-table">
         <thead>
           <tr>
-            <th onclick="sortBy('name')" class="sort-icon" data-col="name">Item</th>
-            <th onclick="sortBy('category')" class="sort-icon" data-col="category">Category</th>
+            <th onclick="sortBy('name')">Item</th>
+            <th onclick="sortBy('category')">Category</th>
             <th>Warehouse Balance</th>
             <th>Shop Balance</th>
-            <th onclick="sortBy('price')" class="sort-icon" data-col="price">Unit price</th>
+            <th onclick="sortBy('price')">Unit price</th>
             <th style="width: 220px;">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="empty-state" id="empty" style="display:none;">
-        <p>No items found. Add your first product to get started or click "Recover Missing Products".</p>
+        <p>No items found. Add your first product or click "Import CSV Data".</p>
       </div>
     </div>
 
@@ -364,7 +345,7 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label>Invoice / Waybill No. <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></label>
+            <label>Invoice / Waybill No.</label>
             <input type="text" id="rec-invoice-no" placeholder="e.g. INV-98214">
           </div>
           <div class="form-group">
@@ -373,9 +354,6 @@
           </div>
         </div>
 
-        <p style="font-size:12px; color:var(--text-tertiary); margin-bottom:12px;">
-          Enter new stock amounts received for each item below.
-        </p>
         <div class="order-list" id="bulk-receive-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
@@ -384,14 +362,13 @@
       </div>
     </div>
 
-    <!-- Internal Transfer Modal (Warehouse <-> Shop) -->
+    <!-- Internal Transfer Modal -->
     <div class="modal-overlay" id="transfer-modal">
       <div class="modal">
         <h2>🔄 Transfer Stock Between Warehouse & Shop</h2>
         <div class="stock-info-box" id="transfer-info"></div>
         <form id="transfer-form" onsubmit="processTransfer(event)">
           <input type="hidden" id="transfer-id">
-          
           <div class="form-row">
             <div class="form-group">
               <label>Transfer Direction</label>
@@ -408,10 +385,9 @@
               </select>
             </div>
           </div>
-
           <div class="form-row">
             <div class="form-group">
-              <label>Waybill / Transfer Note No. <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></label>
+              <label>Waybill / Transfer Note No.</label>
               <input type="text" id="transfer-delivery-no" placeholder="e.g. TR-2026-088">
             </div>
             <div class="form-group">
@@ -419,7 +395,6 @@
               <input type="date" id="transfer-date" required>
             </div>
           </div>
-
           <div class="form-group">
             <label id="transfer-qty-label">Quantity to Move</label>
             <input type="number" id="transfer-input-val" min="1" required placeholder="Enter quantity">
@@ -439,7 +414,6 @@
         <div class="stock-info-box" id="dispatch-info"></div>
         <form id="dispatch-form" onsubmit="processDispatch(event)">
           <input type="hidden" id="dispatch-id">
-
           <div class="form-row">
             <div class="form-group">
               <label>Supply From (Source Stock)</label>
@@ -456,10 +430,9 @@
               </select>
             </div>
           </div>
-
           <div class="form-row">
             <div class="form-group">
-              <label>Delivery Note / Receipt No. <span style="font-weight:400;color:var(--text-tertiary);">(optional)</span></label>
+              <label>Delivery Note / Receipt No.</label>
               <input type="text" id="dispatch-delivery-no" placeholder="e.g. DN-2026-992">
             </div>
             <div class="form-group">
@@ -467,17 +440,14 @@
               <input type="date" id="dispatch-date" required>
             </div>
           </div>
-
           <div class="form-group">
             <label>Client / Recipient Name</label>
             <input type="text" id="dispatch-client" required placeholder="e.g. ABC Wholesale Ltd, John Doe, Retail Customer">
           </div>
-
           <div class="form-group">
             <label id="dispatch-qty-label">Quantity Dispatched</label>
             <input type="number" id="dispatch-input-val" min="1" required placeholder="Enter quantity">
           </div>
-
           <div class="modal-actions">
             <button type="button" class="btn" onclick="closeDispatchModal()">Cancel</button>
             <button type="submit" class="btn btn-primary">Deduct & Dispatch Order</button>
@@ -490,7 +460,6 @@
     <div class="modal-overlay" id="audit-modal">
       <div class="modal" style="max-width: 880px;">
         <h2>📜 Stock Movement Audit Log</h2>
-        <p style="font-size:12px; color:var(--text-tertiary);">Track all receipts, transfers, and client deliveries.</p>
         <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin: 12px 0;">
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
             <thead>
@@ -517,7 +486,6 @@
     <div class="modal-overlay" id="stocktake-modal">
       <div class="modal">
         <h2>📋 Physical Stock Take</h2>
-        
         <div class="form-row" style="margin-bottom:12px;">
           <div class="form-group">
             <label style="font-weight:600;">Counting Location</label>
@@ -533,10 +501,6 @@
             </select>
           </div>
         </div>
-
-        <p style="font-size:12px; color:var(--text-tertiary); margin-bottom:12px;">
-          Enter actual physical counts for the selected location below.
-        </p>
         <div class="order-list" id="stocktake-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" onclick="exportStockTakeForm()">📄 Export Sheet CSV</button>
@@ -568,163 +532,120 @@
     </div>
   </div>
 
+  <!-- Realtime Firebase Database Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
   <script>
-    const CURRENT_STORAGE_KEY = 'inv_tracker_v5_full';
-    const LOG_STORAGE_KEY = 'inv_movement_logs_v3';
-    
+    const firebaseConfig = {
+      apiKey: "AIzaSyBG5rH4tdgX9vA1bSfxUfeG0YT_Vf78SEo",
+      authDomain: "inventory-tracker-8ba26.firebaseapp.com",
+      databaseURL: "https://inventory-tracker-8ba26-default-rtdb.firebaseio.com",
+      projectId: "inventory-tracker-8ba26",
+      storageBucket: "inventory-tracker-8ba26.firebasestorage.app",
+      messagingSenderId: "283281271142",
+      appId: "1:283281271142:web:34d150e2f14bbaf18c40a7",
+      measurementId: "G-8M37Q7QDR8"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     let items = [];
     let auditLogs = [];
     let sortCol = 'name';
     let sortDir = 'asc';
     let skuEdited = false;
-    let printerPort = null;
-    let printerWriter = null;
 
-    function recoverAllPreviousData() {
-      let foundItems = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith('inv_tracker') || key.includes('inventory'))) {
-          try {
-            const rawData = localStorage.getItem(key);
-            const parsed = JSON.parse(rawData);
-            if (Array.isArray(parsed)) {
-              parsed.forEach(item => {
-                if (item && item.name) {
-                  const normalizedItem = {
-                    id: item.id || (Date.now() + Math.random()),
-                    name: item.name,
-                    model: item.model || '',
-                    sku: item.sku || 'SKU-000',
-                    category: item.category || 'General',
-                    qtyPerCarton: item.qtyPerCarton || 1,
-                    whCartons: item.whCartons !== undefined ? item.whCartons : (item.cartons || Math.ceil((item.qty || 0) / (item.qtyPerCarton || 1))),
-                    shopCartons: item.shopCartons !== undefined ? item.shopCartons : 0,
-                    unit: item.unit || 'pcs',
-                    min: item.min || 2,
-                    price: item.price || 0,
-                    supplier: item.supplier || ''
-                  };
-                  
-                  const exists = foundItems.some(f => f.name.toLowerCase() === normalizedItem.name.toLowerCase() && f.sku === normalizedItem.sku);
-                  if (!exists) {
-                    foundItems.push(normalizedItem);
-                  }
-                }
-              });
-            }
-          } catch(e) {}
-        }
-      }
-
-      if (foundItems.length > 0) {
-        items = foundItems;
-        save();
-        updateCatList();
-        updateSupplierList();
-        render();
-        alert(`Successfully recovered ${foundItems.length} product(s) from your browser history!`);
-      } else {
-        alert("No previous saved data was found in this browser context.");
-      }
-    }
-
-    function load() {
-      try {
-        const raw = localStorage.getItem(CURRENT_STORAGE_KEY);
-        if (raw) {
-          items = JSON.parse(raw);
-        } else {
-          recoverAllPreviousData();
-        }
-
-        const rawLogs = localStorage.getItem(LOG_STORAGE_KEY);
-        if (rawLogs) auditLogs = JSON.parse(rawLogs);
-      } catch(e) {}
-
-      if (!items.length) {
-        items = [
-          {id:1, name:'ACME TRINA OPEN BUCKET 10LTR', model:'10L-OPEN-BKT', sku:'KIT-BUK-100', category:'Kitchen', qtyPerCarton:12, whCartons:5, shopCartons:2, unit:'pcs', min:2, price:100, supplier:'AcmePlastics'},
-          {id:2, name:'Wireless mouse', model:'MX-2024-BLK', sku:'ELE-WIR-482', category:'Electronics', qtyPerCarton:1, whCartons:40, shopCartons:20, unit:'pcs', min:2, price:2499, supplier:'TechCorp'}
-        ];
-        save();
-      }
+    db.ref('items').on('value', (snapshot) => {
+      const data = snapshot.val();
+      items = data ? Object.values(data) : [];
+      document.getElementById('sync-dot').classList.add('connected');
+      document.getElementById('sync-label').textContent = 'Cloud Sync: Connected ⚡';
       updateCatList();
       updateSupplierList();
       render();
-    }
+    });
 
-    function save() { 
-      localStorage.setItem(CURRENT_STORAGE_KEY, JSON.stringify(items)); 
-      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(auditLogs)); 
+    db.ref('auditLogs').on('value', (snapshot) => {
+      const data = snapshot.val();
+      auditLogs = data ? Object.values(data) : [];
+    });
+
+    function save() {
+      const itemsMap = {};
+      items.forEach(item => { itemsMap[item.id] = item; });
+      db.ref('items').set(itemsMap);
+
+      const logsMap = {};
+      auditLogs.forEach(log => { logsMap[log.id] = log; });
+      db.ref('auditLogs').set(logsMap);
     }
 
     function logMovement(action, refNo, date, itemName, qty, route) {
-      auditLogs.unshift({
-        id: Date.now() + Math.random(),
+      const newLog = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
         action: action, 
         refNo: refNo || 'N/A',
         date: date,
         itemName: itemName,
         qty: qty,
         route: route
-      });
-      save();
+      };
+      auditLogs.unshift(newLog);
+      db.ref('auditLogs/' + newLog.id).set(newLog);
     }
 
-    async function connectPrinter() {
-      if (!('serial' in navigator)) { alert('Web Serial not supported in this browser.'); return; }
-      try {
-        printerPort = await navigator.serial.requestPort();
-        await printerPort.open({ baudRate: 9600 });
-        const textEncoder = new TextEncoderStream();
-        textEncoder.readable.pipeTo(printerPort.writable);
-        printerWriter = textEncoder.writable.getWriter();
-        document.getElementById('printer-dot').classList.add('connected');
-        document.getElementById('printer-label').textContent = 'Printer: Connected';
-        alert('Connected to ComStore Thermal Printer!');
-      } catch (err) { alert('Printer connection error: ' + err.message); }
+    /* CSV Import Handler */
+    function triggerCsvImport() {
+      document.getElementById('csv-file-input').click();
     }
 
-    async function printLabel(id) {
-      const item = items.find(i => i.id === id);
-      if (!item) return;
-      if (!printerWriter) {
-        if (confirm('Printer not connected. Connect now?')) await connectPrinter();
-        if (!printerWriter) return;
-      }
-      const labelCount = prompt(`How many labels for "${item.name}"?`, "2");
-      const count = parseInt(labelCount) || 0;
-      if (count <= 0) return;
+    function handleCsvFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
 
-      const sets = Math.ceil(count / 2);
-      const cleanName = item.name.replace(/"/g, '').replace(/'/g, '').toUpperCase();
-      const formattedPrice = `${Math.round(item.price)}/-`;
-      let line1 = cleanName.slice(0, 15);
-      let line2 = cleanName.length > 15 ? cleanName.slice(15, 30) : "";
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const text = evt.target.result;
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length < 2) { alert('Invalid CSV file.'); return; }
 
-      const tsplCommand = 
-`SIZE 56 mm, 27 mm
-GAP 2 mm, 0 mm
-REFERENCE 0,0
-DIRECTION 1
-CLS
-TEXT 15,10,"2",0,1,1,"BIN ATHMAN HOUSEHOLD"
-TEXT 65,30,"2",0,1,1,"STORE"
-TEXT 10,60,"2",0,1,1,"${line1}"
-TEXT 10,80,"2",0,1,1,"${line2}"
-TEXT 35,110,"4",0,1,1,"${formattedPrice}"
-TEXT 245,10,"2",0,1,1,"BIN ATHMAN HOUSEHOLD"
-TEXT 295,30,"2",0,1,1,"STORE"
-TEXT 240,60,"2",0,1,1,"${line1}"
-TEXT 240,80,"2",0,1,1,"${line2}"
-TEXT 265,110,"4",0,1,1,"${formattedPrice}"
-PRINT ${sets},1
-`;
-      try {
-        await printerWriter.write(tsplCommand);
-        alert(`Printed ${count} label(s)!`);
-      } catch (err) { alert('Printing error: ' + err.message); }
+        let importedCount = 0;
+        const newItemsMap = {};
+
+        // Parse CSV lines
+        for (let i = 1; i < lines.length; i++) {
+          const row = lines[i].split(',').map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
+          if (row.length >= 8) {
+            const id = Date.now() + i;
+            newItemsMap[id] = {
+              id: id,
+              name: row[0] || 'Unassigned Product',
+              model: row[1] || '',
+              sku: row[2] || ('SKU-' + i),
+              category: row[3] || 'General',
+              qtyPerCarton: parseInt(row[4]) || 1,
+              whCartons: parseInt(row[5]) || 0,
+              shopCartons: parseInt(row[6]) || 0,
+              unit: row[7] || 'pcs',
+              price: parseFloat(row[8]) || 0,
+              supplier: row[9] || '',
+              min: 2
+            };
+            importedCount++;
+          }
+        }
+
+        if (importedCount > 0) {
+          db.ref('items').set(newItemsMap).then(() => {
+            alert(`🎉 Successfully uploaded all ${importedCount} products directly into Firebase Cloud!`);
+          });
+        } else {
+          alert('Could not parse valid items from the selected CSV file.');
+        }
+      };
+      reader.readAsText(file);
     }
 
     function updateCatList() {
@@ -752,7 +673,6 @@ PRINT ${sets},1
       }
     }
 
-    /* Bulk Receive Supplier Modal */
     function openBulkReceiveModal() {
       document.getElementById('bulk-receive-modal').classList.add('open');
       document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
@@ -818,7 +738,6 @@ PRINT ${sets},1
       alert(`Received delivery for ${count} item(s) into ${dest.toUpperCase()}!`);
     }
 
-    /* Internal Location Transfer Modal */
     function openTransferModal(id) {
       const item = items.find(i => i.id === id);
       if (!item) return;
@@ -826,7 +745,6 @@ PRINT ${sets},1
       document.getElementById('transfer-input-val').value = '';
       document.getElementById('transfer-delivery-no').value = '';
       document.getElementById('transfer-date').value = new Date().toISOString().split('T')[0];
-      
       updateTransferInfo();
       document.getElementById('transfer-modal').classList.add('open');
     }
@@ -835,10 +753,8 @@ PRINT ${sets},1
       const id = parseInt(document.getElementById('transfer-id').value);
       const item = items.find(i => i.id === id);
       if (!item) return;
-
       const route = document.getElementById('transfer-route').value;
       const srcText = route === 'wh_to_shop' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
-      
       document.getElementById('transfer-info').innerHTML = `
         <strong>${escapeHtml(item.name)}</strong><br>
         Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
@@ -885,17 +801,14 @@ PRINT ${sets},1
       alert('Transfer completed successfully!');
     }
 
-    /* Outbound Client Dispatch / Sale Modal */
     function openDispatchModal(id) {
       const item = items.find(i => i.id === id);
       if (!item) return;
-
       document.getElementById('dispatch-id').value = item.id;
       document.getElementById('dispatch-input-val').value = '';
       document.getElementById('dispatch-delivery-no').value = '';
       document.getElementById('dispatch-client').value = '';
       document.getElementById('dispatch-date').value = new Date().toISOString().split('T')[0];
-
       updateDispatchInfo();
       document.getElementById('dispatch-modal').classList.add('open');
     }
@@ -904,10 +817,8 @@ PRINT ${sets},1
       const id = parseInt(document.getElementById('dispatch-id').value);
       const item = items.find(i => i.id === id);
       if (!item) return;
-
       const src = document.getElementById('dispatch-source').value;
       const srcText = src === 'warehouse' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
-
       document.getElementById('dispatch-info').innerHTML = `
         <strong>${escapeHtml(item.name)}</strong><br>
         Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
@@ -953,7 +864,6 @@ PRINT ${sets},1
       alert(`Successfully supplied ${val} ${mode} to ${client}!`);
     }
 
-    /* Movement Audit Log */
     function openAuditLogModal() {
       document.getElementById('audit-modal').classList.add('open');
       const tbody = document.getElementById('audit-log-tbody');
@@ -963,7 +873,6 @@ PRINT ${sets},1
         let bg = 'rgba(37,99,235,0.15)';
         if (l.action === 'RECEIVE') { badgeColor = 'var(--positive)'; bg = 'rgba(22,163,74,0.15)'; }
         if (l.action === 'SUPPLY_CLIENT') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
-
         return `
           <tr style="border-bottom:1px solid var(--border-divider);">
             <td style="padding:8px; white-space:nowrap;">${l.date}</td>
@@ -990,7 +899,6 @@ PRINT ${sets},1
       URL.revokeObjectURL(url);
     }
 
-    /* Stock Take Modal */
     function openStockTakeModal() {
       document.getElementById('stocktake-modal').classList.add('open');
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
@@ -1003,10 +911,8 @@ PRINT ${sets},1
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
       const container = document.getElementById('stocktake-items');
-      
       let filtered = items;
       if (supplier) filtered = items.filter(i => i.supplier === supplier);
-
       container.innerHTML = filtered.map(it => {
         const currentCartons = loc === 'warehouse' ? it.whCartons : it.shopCartons;
         return `
@@ -1030,7 +936,6 @@ PRINT ${sets},1
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
       let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
-
       targetItems.forEach(it => {
         const input = document.getElementById(`st-${it.id}`);
         if (input) {
@@ -1097,7 +1002,6 @@ PRINT ${sets},1
               <div class="row-actions">
                 <button class="btn btn-sm" onclick="openDispatchModal(${it.id})" title="Supply to Client">🚚 Supply</button>
                 <button class="btn btn-sm" onclick="openTransferModal(${it.id})" title="Transfer between Wh & Shop">🔄 Transfer</button>
-                <button class="btn btn-sm" onclick="printLabel(${it.id})" title="Print Label">🏷️ Print</button>
                 <button class="btn btn-sm" onclick="editItem(${it.id})">Edit</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteItem(${it.id})">Delete</button>
               </div>
@@ -1134,7 +1038,6 @@ PRINT ${sets},1
       const initSection = document.getElementById('initial-stock-section');
 
       if (id) {
-        // Hide initial location selector when editing an existing item
         initSection.style.display = 'none';
         const it = items.find(i => i.id === id);
         if (it) {
@@ -1151,7 +1054,6 @@ PRINT ${sets},1
           document.getElementById('f-supplier').value = it.supplier || '';
         }
       } else {
-        // Show initial location selector for brand new items
         initSection.style.display = 'grid';
         document.getElementById('f-initialLoc').value = 'warehouse';
         document.getElementById('f-initialCartons').value = 0;
@@ -1181,14 +1083,9 @@ PRINT ${sets},1
       if (id) {
         const idx = items.findIndex(i => i.id === parseInt(id));
         if (idx > -1) {
-          // Preserve existing location balances when editing details
-          items[idx] = { 
-            ...items[idx], 
-            ...data 
-          };
+          items[idx] = { ...items[idx], ...data };
         }
       } else {
-        // Assign stock to chosen location for new items
         data.id = Date.now();
         data.whCartons = (initialLoc === 'warehouse') ? initialCartons : 0;
         data.shopCartons = (initialLoc === 'shop') ? initialCartons : 0;
@@ -1206,6 +1103,7 @@ PRINT ${sets},1
     function deleteItem(id) {
       if (confirm('Delete this item?')) {
         items = items.filter(i => i.id !== id);
+        db.ref('items/' + id).remove();
         save(); updateCatList(); updateSupplierList(); render();
       }
     }
@@ -1295,8 +1193,6 @@ PRINT ${sets},1
     document.getElementById('transfer-modal').addEventListener('click', e => { if (e.target === document.getElementById('transfer-modal')) closeTransferModal(); });
     document.getElementById('dispatch-modal').addEventListener('click', e => { if (e.target === document.getElementById('dispatch-modal')) closeDispatchModal(); });
     document.getElementById('order-modal').addEventListener('click', e => { if (e.target === document.getElementById('order-modal')) closeOrderModal(); });
-
-    load();
   </script>
 </body>
 </html>
