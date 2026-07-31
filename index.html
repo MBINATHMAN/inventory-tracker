@@ -184,7 +184,6 @@
     .order-list { max-height: 380px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
     .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
     
-    /* Category grouping card inside receive modal */
     .cat-section {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -344,7 +343,7 @@
       </div>
     </div>
 
-    <!-- Bulk Supplier Receive Modal with Search & Category Grouping -->
+    <!-- Bulk Supplier Receive Modal -->
     <div class="modal-overlay" id="bulk-receive-modal">
       <div class="modal">
         <h2>📦 Receive Supplier Shipment</h2>
@@ -375,7 +374,6 @@
           </div>
         </div>
 
-        <!-- Live Search Bar inside Supplier Receive -->
         <div class="form-group" style="margin-top: 4px;">
           <input type="text" class="search-input" id="rec-search" placeholder="🔍 Search product name, model, or SKU within supplier items..." oninput="renderBulkReceiveItems()" style="width: 100%;">
         </div>
@@ -388,19 +386,18 @@
       </div>
     </div>
 
-    <!-- Internal Transfer Modal -->
+    <!-- Transfer / Dispatch Modal (Treats Wh -> Shop as Sale) -->
     <div class="modal-overlay" id="transfer-modal">
       <div class="modal">
-        <h2>🔄 Transfer Stock Between Warehouse & Shop</h2>
+        <h2>🔄 Transfer / Send to Shop (Mark as Sold)</h2>
         <div class="stock-info-box" id="transfer-info"></div>
         <form id="transfer-form" onsubmit="processTransfer(event)">
           <input type="hidden" id="transfer-id">
           <div class="form-row">
             <div class="form-group">
-              <label>Transfer Direction</label>
+              <label>Movement Action</label>
               <select id="transfer-route" onchange="updateTransferInfo()">
-                <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Store</option>
-                <option value="shop_to_wh">🏬 Shop Store ➔ 🏭 Warehouse</option>
+                <option value="wh_to_shop">🛍️ Warehouse ➔ Shop Floor (Sold Stock)</option>
               </select>
             </div>
             <div class="form-group">
@@ -413,21 +410,21 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Waybill / Transfer Note No.</label>
-              <input type="text" id="transfer-delivery-no" placeholder="e.g. TR-2026-088">
+              <label>Sales Note / Receipt No.</label>
+              <input type="text" id="transfer-delivery-no" placeholder="e.g. SALE-2026-088">
             </div>
             <div class="form-group">
-              <label>Transfer Date</label>
+              <label>Date</label>
               <input type="date" id="transfer-date" required>
             </div>
           </div>
           <div class="form-group">
-            <label id="transfer-qty-label">Quantity to Move</label>
+            <label id="transfer-qty-label">Quantity Sold / Sent to Shop</label>
             <input type="number" id="transfer-input-val" min="1" required placeholder="Enter quantity">
           </div>
           <div class="modal-actions">
             <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Execute Internal Transfer</button>
+            <button type="submit" class="btn btn-primary">Deduct Stock (Mark Sold)</button>
           </div>
         </form>
       </div>
@@ -712,7 +709,6 @@
       }
     }
 
-    /* Supplier Bulk Receive Modal with Search & Category Grouping */
     function openBulkReceiveModal() {
       document.getElementById('bulk-receive-modal').classList.add('open');
       document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
@@ -736,7 +732,6 @@
         return; 
       }
       
-      // Filter items by supplier and live search query
       let supplierItems = items.filter(i => i.supplier === supplier);
       if (query) {
         supplierItems = supplierItems.filter(i => 
@@ -752,7 +747,6 @@
         return; 
       }
 
-      // Group items by category
       const grouped = {};
       supplierItems.forEach(it => {
         const cat = it.category || 'General';
@@ -760,12 +754,10 @@
         grouped[cat].push(it);
       });
 
-      // Sort category keys alphabetically (A-Z)
       const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
       let html = '';
       sortedCategories.forEach(cat => {
-        // Sort items inside each category alphabetically by name (A-Z)
         grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
 
         html += `
@@ -848,11 +840,9 @@
       const id = parseInt(document.getElementById('transfer-id').value);
       const item = items.find(i => i.id === id);
       if (!item) return;
-      const route = document.getElementById('transfer-route').value;
-      const srcText = route === 'wh_to_shop' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
       document.getElementById('transfer-info').innerHTML = `
         <strong>${escapeHtml(item.name)}</strong><br>
-        Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
+        Warehouse Available Stock: <strong>${item.whCartons} Cartons</strong> (${item.whCartons * item.qtyPerCarton} ${escapeHtml(item.unit)})
       `;
       updateTransferLabel();
     }
@@ -861,16 +851,16 @@
       const mode = document.getElementById('transfer-unit-mode').value;
       const id = parseInt(document.getElementById('transfer-id').value);
       const item = items.find(i => i.id === id);
-      document.getElementById('transfer-qty-label').textContent = mode === 'cartons' ? 'Cartons to Transfer' : `Pieces (${item ? item.unit : 'pcs'}) to Transfer`;
+      document.getElementById('transfer-qty-label').textContent = mode === 'cartons' ? 'Cartons Sold / Sent to Shop' : `Pieces (${item ? item.unit : 'pcs'}) Sold / Sent to Shop`;
     }
 
     function closeTransferModal() { document.getElementById('transfer-modal').classList.remove('open'); }
 
+    /* Updated logic: Transferring to Shop deducts warehouse stock as SOLD */
     function processTransfer(e) {
       e.preventDefault();
       const id = parseInt(document.getElementById('transfer-id').value);
       const val = parseInt(document.getElementById('transfer-input-val').value) || 0;
-      const route = document.getElementById('transfer-route').value;
       const delNo = document.getElementById('transfer-delivery-no').value.trim() || 'N/A';
       const date = document.getElementById('transfer-date').value;
       const mode = document.getElementById('transfer-unit-mode').value;
@@ -880,20 +870,17 @@
 
       let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
 
-      if (route === 'wh_to_shop') {
-        if (cartonsToDeduct > item.whCartons) { alert(`Insufficient warehouse stock! Max: ${item.whCartons} ctns`); return; }
-        item.whCartons -= cartonsToDeduct;
-        item.shopCartons += cartonsToDeduct;
-        logMovement('TRANSFER', delNo, date, item.name, `${val} ${mode}`, 'Warehouse ➔ Shop');
-      } else {
-        if (cartonsToDeduct > item.shopCartons) { alert(`Insufficient shop stock! Max: ${item.shopCartons} ctns`); return; }
-        item.shopCartons -= cartonsToDeduct;
-        item.whCartons += cartonsToDeduct;
-        logMovement('TRANSFER', delNo, date, item.name, `${val} ${mode}`, 'Shop ➔ Warehouse');
+      if (cartonsToDeduct > item.whCartons) {
+        alert(`Insufficient warehouse stock! Maximum available: ${item.whCartons} ctns`);
+        return;
       }
 
+      // Deduct directly from Warehouse as Sold Stock
+      item.whCartons -= cartonsToDeduct;
+      logMovement('SOLD_TO_SHOP', delNo, date, item.name, `${val} ${mode}`, 'Warehouse ➔ Shop Floor (Sold)');
+
       save(); closeTransferModal(); render();
-      alert('Transfer completed successfully!');
+      alert(`Deducted ${val} ${mode} from Warehouse stock as SOLD!`);
     }
 
     function openDispatchModal(id) {
@@ -967,7 +954,7 @@
         let badgeColor = 'var(--accent-blue)';
         let bg = 'rgba(37,99,235,0.15)';
         if (l.action === 'RECEIVE') { badgeColor = 'var(--positive)'; bg = 'rgba(22,163,74,0.15)'; }
-        if (l.action === 'SUPPLY_CLIENT') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
+        if (l.action === 'SUPPLY_CLIENT' || l.action === 'SOLD_TO_SHOP') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
         return `
           <tr style="border-bottom:1px solid var(--border-divider);">
             <td style="padding:8px; white-space:nowrap;">${l.date}</td>
@@ -1096,7 +1083,7 @@
             <td>
               <div class="row-actions">
                 <button class="btn btn-sm" onclick="openDispatchModal(${it.id})" title="Supply to Client">🚚 Supply</button>
-                <button class="btn btn-sm" onclick="openTransferModal(${it.id})" title="Transfer between Wh & Shop">🔄 Transfer</button>
+                <button class="btn btn-sm" onclick="openTransferModal(${it.id})" title="Mark as Sold to Shop">🛍️ Transfer (Sold)</button>
                 <button class="btn btn-sm" onclick="editItem(${it.id})">Edit</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteItem(${it.id})">Delete</button>
               </div>
