@@ -116,6 +116,7 @@
     }
     .badge-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
     .badge-dot.connected { background: var(--positive); }
+    .badge-dot.offline { background: var(--accent-orange); }
     .table-wrap {
       border: 1px solid var(--border);
       border-radius: 10px;
@@ -549,6 +550,12 @@
     };
 
     firebase.initializeApp(firebaseConfig);
+    
+    // Enable Offline Local Persistence
+    try {
+      firebase.database().setPersistenceEnabled(true);
+    } catch(e) {}
+
     const db = firebase.database();
 
     let items = [];
@@ -557,11 +564,22 @@
     let sortDir = 'asc';
     let skuEdited = false;
 
+    // Network connection status listener
+    db.ref('.info/connected').on('value', (snap) => {
+      const dot = document.getElementById('sync-dot');
+      const label = document.getElementById('sync-label');
+      if (snap.val() === true) {
+        dot.className = 'badge-dot connected';
+        label.textContent = 'Cloud Sync: Connected ⚡';
+      } else {
+        dot.className = 'badge-dot offline';
+        label.textContent = 'Offline Mode (Local Cache Saved) 📁';
+      }
+    });
+
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
-      document.getElementById('sync-dot').classList.add('connected');
-      document.getElementById('sync-label').textContent = 'Cloud Sync: Connected ⚡';
       updateCatList();
       updateSupplierList();
       render();
@@ -596,7 +614,6 @@
       db.ref('auditLogs/' + newLog.id).set(newLog);
     }
 
-    /* CSV Import Handler */
     function triggerCsvImport() {
       document.getElementById('csv-file-input').click();
     }
@@ -614,7 +631,6 @@
         let importedCount = 0;
         const newItemsMap = {};
 
-        // Parse CSV lines
         for (let i = 1; i < lines.length; i++) {
           const row = lines[i].split(',').map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
           if (row.length >= 8) {
@@ -655,7 +671,7 @@
 
     function updateSupplierList() {
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      document.getElementById('supplier-list').innerHTML = suppliers.map(s => `<option value="${escapeHtml(s)}">`).join('');
+      document.getElementById('supplier-list').innerHTML = suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     }
 
     function escapeHtml(t) {
