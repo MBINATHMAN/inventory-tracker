@@ -156,7 +156,7 @@
     .modal-overlay.open { opacity: 1; pointer-events: all; }
     .modal {
       background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
-      padding: 24px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
+      padding: 24px; width: 90%; max-width: 750px; max-height: 90vh; overflow-y: auto;
       transform: translateY(10px); transition: transform 0.2s;
     }
     .modal-overlay.open .modal { transform: translateY(0); }
@@ -180,10 +180,30 @@
     .order-item-info { flex: 1; }
     .order-item-name { font-weight: 500; font-size: 14px; }
     .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
-    .order-qty { width: 75px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; }
-    .order-total { font-size: 16px; font-weight: 600; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); text-align: right; }
-    .order-list { max-height: 320px; overflow-y: auto; margin: 12px 0; }
+    .order-qty { width: 85px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-weight: 600; }
+    .order-list { max-height: 380px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
     .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
+    
+    /* Category grouping card inside receive modal */
+    .cat-section {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .cat-header {
+      background: rgba(107, 114, 128, 0.1);
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .cat-body { padding: 4px 12px; background: var(--bg); }
   </style>
 </head>
 <body>
@@ -324,7 +344,7 @@
       </div>
     </div>
 
-    <!-- Bulk Supplier Receive Modal -->
+    <!-- Bulk Supplier Receive Modal with Search & Category Grouping -->
     <div class="modal-overlay" id="bulk-receive-modal">
       <div class="modal">
         <h2>📦 Receive Supplier Shipment</h2>
@@ -353,6 +373,11 @@
             <label>Delivery Date</label>
             <input type="date" id="rec-delivery-date">
           </div>
+        </div>
+
+        <!-- Live Search Bar inside Supplier Receive -->
+        <div class="form-group" style="margin-top: 4px;">
+          <input type="text" class="search-input" id="rec-search" placeholder="🔍 Search product name, model, or SKU within supplier items..." oninput="renderBulkReceiveItems()" style="width: 100%;">
         </div>
 
         <div class="order-list" id="bulk-receive-items"></div>
@@ -551,7 +576,6 @@
 
     firebase.initializeApp(firebaseConfig);
     
-    // Enable Offline Local Persistence
     try {
       firebase.database().setPersistenceEnabled(true);
     } catch(e) {}
@@ -564,7 +588,6 @@
     let sortDir = 'asc';
     let skuEdited = false;
 
-    // Network connection status listener
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
       const label = document.getElementById('sync-label');
@@ -665,7 +688,7 @@
     }
 
     function updateCatList() {
-      const cats = [...new Set(items.map(i => i.category))];
+      const cats = [...new Set(items.map(i => i.category))].sort();
       document.getElementById('cat-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
     }
 
@@ -689,10 +712,12 @@
       }
     }
 
+    /* Supplier Bulk Receive Modal with Search & Category Grouping */
     function openBulkReceiveModal() {
       document.getElementById('bulk-receive-modal').classList.add('open');
       document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
       document.getElementById('rec-invoice-no').value = '';
+      document.getElementById('rec-search').value = '';
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -703,23 +728,77 @@
 
     function renderBulkReceiveItems() {
       const supplier = document.getElementById('receive-supplier-select').value;
+      const query = (document.getElementById('rec-search').value || '').toLowerCase().trim();
       const container = document.getElementById('bulk-receive-items');
-      if (!supplier) { container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">Select a supplier to see items.</p>'; return; }
-      const supplierItems = items.filter(i => i.supplier === supplier);
-      if (!supplierItems.length) { container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">No registered items for this supplier.</p>'; return; }
+      
+      if (!supplier) { 
+        container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">Select a supplier to see items.</p>'; 
+        return; 
+      }
+      
+      // Filter items by supplier and live search query
+      let supplierItems = items.filter(i => i.supplier === supplier);
+      if (query) {
+        supplierItems = supplierItems.filter(i => 
+          i.name.toLowerCase().includes(query) || 
+          (i.model || '').toLowerCase().includes(query) || 
+          i.sku.toLowerCase().includes(query) ||
+          i.category.toLowerCase().includes(query)
+        );
+      }
 
-      container.innerHTML = supplierItems.map(it => `
-        <div class="order-item">
-          <div class="order-item-info">
-            <div class="order-item-name">${escapeHtml(it.name)}</div>
-            <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns</div>
+      if (!supplierItems.length) { 
+        container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">No matching items found for this supplier.</p>'; 
+        return; 
+      }
+
+      // Group items by category
+      const grouped = {};
+      supplierItems.forEach(it => {
+        const cat = it.category || 'General';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(it);
+      });
+
+      // Sort category keys alphabetically (A-Z)
+      const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+      let html = '';
+      sortedCategories.forEach(cat => {
+        // Sort items inside each category alphabetically by name (A-Z)
+        grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
+
+        html += `
+          <div class="cat-section">
+            <div class="cat-header">
+              <span>📁 ${escapeHtml(cat)}</span>
+              <span style="font-weight: normal; font-size: 11px; opacity:0.8;">${grouped[cat].length} item(s)</span>
+            </div>
+            <div class="cat-body">
+        `;
+
+        grouped[cat].forEach(it => {
+          html += `
+            <div class="order-item">
+              <div class="order-item-info">
+                <div class="order-item-name">${escapeHtml(it.name)}</div>
+                <div class="order-item-meta">${it.model ? escapeHtml(it.model) + ' · ' : ''}SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-tertiary);">+ Cartons:</span>
+                <input type="number" class="order-qty" id="rec-${it.id}" value="0" min="0">
+              </div>
+            </div>
+          `;
+        });
+
+        html += `
+            </div>
           </div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-size:12px; color:var(--text-tertiary);">+ Add Cartons:</span>
-            <input type="number" class="order-qty" id="rec-${it.id}" value="0" min="0">
-          </div>
-        </div>
-      `).join('');
+        `;
+      });
+
+      container.innerHTML = html;
     }
 
     function processBulkReceive() {
