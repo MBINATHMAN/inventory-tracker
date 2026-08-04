@@ -140,6 +140,7 @@
     td { padding: 10px 12px; border-bottom: 1px solid var(--border-divider); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tr:hover { background: var(--surface-hover); }
+    tr.low-stock-row { background: rgba(234, 88, 12, 0.05); }
     .chip {
       display: inline-block;
       padding: 2px 8px;
@@ -147,6 +148,7 @@
       font-size: 12px;
       font-weight: 500;
     }
+    .chip-danger { background: rgba(220,38,38,0.15); color: var(--danger); }
     .empty-state { text-align: center; padding: 48px 24px; color: var(--text-tertiary); }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.4);
@@ -171,7 +173,7 @@
     .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--text); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-    .item-name { font-weight: 600; }
+    .item-name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
     .item-model { font-size: 12px; color: var(--text-secondary); }
     .item-sku { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); }
     .price { font-variant-numeric: tabular-nums; }
@@ -240,11 +242,14 @@
 
     <div class="toolbar">
       <input type="text" class="search-input" id="search" placeholder="Search by name, model, SKU, category, or supplier..." oninput="render()">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; padding: 0 4px;">
+        <input type="checkbox" id="filter-low-stock" onchange="render()"> ⚠️ Low Stock Only
+      </label>
       <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
       <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
       <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
-      <button class="btn" onclick="openOrderModal()">Create PO Order</button>
+      <button class="btn" onclick="openOrderModal()">⚡ Smart PO Order</button>
       <button class="btn" onclick="exportCSV()">Export CSV</button>
     </div>
 
@@ -252,12 +257,12 @@
       <table id="inventory-table">
         <thead>
           <tr>
-            <th onclick="sortBy('name')">Item</th>
-            <th onclick="sortBy('category')">Category</th>
+            <th id="th-name" onclick="sortBy('name')">Item</th>
+            <th id="th-category" onclick="sortBy('category')">Category</th>
             <th>Warehouse Balance</th>
             <th>Shop Balance</th>
-            <th onclick="sortBy('price')">Unit price</th>
-            <th style="width: 220px;">Actions</th>
+            <th id="th-price" onclick="sortBy('price')">Unit price</th>
+            <th style="width: 270px;">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -322,7 +327,7 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>Min Stock Threshold (Cartons)</label>
+              <label>Min Stock Threshold (Total Cartons)</label>
               <input type="number" id="f-min" min="0" required value="2">
             </div>
             <div class="form-group">
@@ -386,22 +391,23 @@
       </div>
     </div>
 
-    <!-- Transfer / Dispatch Modal (Treats Wh -> Shop as Sale) -->
+    <!-- Transfer Modal -->
     <div class="modal-overlay" id="transfer-modal">
       <div class="modal">
-        <h2>🔄 Transfer / Send to Shop (Mark as Sold)</h2>
+        <h2>🔄 Transfer Stock Between Locations</h2>
         <div class="stock-info-box" id="transfer-info"></div>
         <form id="transfer-form" onsubmit="processTransfer(event)">
           <input type="hidden" id="transfer-id">
           <div class="form-row">
             <div class="form-group">
-              <label>Movement Action</label>
+              <label>Transfer Direction</label>
               <select id="transfer-route" onchange="updateTransferInfo()">
-                <option value="wh_to_shop">🛍️ Warehouse ➔ Shop Floor (Sold Stock)</option>
+                <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Floor</option>
+                <option value="shop_to_wh">🏬 Shop Floor ➔ 🏭 Warehouse</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Deduct Unit</label>
+              <label>Transfer Unit</label>
               <select id="transfer-unit-mode" onchange="updateTransferLabel()">
                 <option value="cartons">Cartons</option>
                 <option value="pcs">Pieces / Units</option>
@@ -410,8 +416,8 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Sales Note / Receipt No.</label>
-              <input type="text" id="transfer-delivery-no" placeholder="e.g. SALE-2026-088">
+              <label>Transfer Note / Ref No.</label>
+              <input type="text" id="transfer-delivery-no" placeholder="e.g. TR-2026-001">
             </div>
             <div class="form-group">
               <label>Date</label>
@@ -419,12 +425,12 @@
             </div>
           </div>
           <div class="form-group">
-            <label id="transfer-qty-label">Quantity Sold / Sent to Shop</label>
+            <label id="transfer-qty-label">Quantity to Transfer</label>
             <input type="number" id="transfer-input-val" min="1" required placeholder="Enter quantity">
           </div>
           <div class="modal-actions">
             <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Deduct Stock (Mark Sold)</button>
+            <button type="submit" class="btn btn-primary">Complete Transfer</button>
           </div>
         </form>
       </div>
@@ -479,10 +485,70 @@
       </div>
     </div>
 
+    <!-- Stock Shrinkage / Damage Loss Adjustment Modal -->
+    <div class="modal-overlay" id="loss-modal">
+      <div class="modal">
+        <h2>🗑️ Record Stock Damage / Shrinkage Loss</h2>
+        <div class="stock-info-box" id="loss-info"></div>
+        <form id="loss-form" onsubmit="processLoss(event)">
+          <input type="hidden" id="loss-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Deduct From Location</label>
+              <select id="loss-source" onchange="updateLossInfo()">
+                <option value="warehouse">🏭 Warehouse Stock</option>
+                <option value="shop">🏬 Shop Floor Stock</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Deduct Unit</label>
+              <select id="loss-unit-mode">
+                <option value="cartons">Cartons</option>
+                <option value="pcs">Pieces / Units</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Reason for Loss</label>
+              <select id="loss-reason">
+                <option value="Damaged in Transit">Damaged in Transit</option>
+                <option value="Broken on Floor">Broken on Floor</option>
+                <option value="Expired / Unusable">Expired / Unusable</option>
+                <option value="Discrepancy / Shrinkage">Discrepancy / Shrinkage</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="loss-date" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Quantity Lost / Damaged</label>
+            <input type="number" id="loss-input-val" min="1" required placeholder="Enter quantity">
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeLossModal()">Cancel</button>
+            <button type="submit" class="btn btn-danger">Deduct Loss</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Movement Audit Log Modal -->
     <div class="modal-overlay" id="audit-modal">
       <div class="modal" style="max-width: 880px;">
-        <h2>📜 Stock Movement Audit Log</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <h2 style="margin:0;">📜 Stock Movement Audit Log</h2>
+          <select id="audit-filter-action" onchange="renderAuditLogs()" style="width:200px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; background:var(--bg); color:var(--text);">
+            <option value="">All Actions</option>
+            <option value="RECEIVE">RECEIVE (Inbound)</option>
+            <option value="SUPPLY_CLIENT">SUPPLY_CLIENT (Outbound)</option>
+            <option value="TRANSFER">TRANSFER (Inter-location)</option>
+            <option value="DAMAGE_LOSS">DAMAGE_LOSS (Shrinkage)</option>
+            <option value="STOCK_TAKE_ADJUST">STOCK_TAKE_ADJUST</option>
+          </select>
+        </div>
         <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin: 12px 0;">
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
             <thead>
@@ -492,7 +558,7 @@
                 <th style="padding: 8px;">Doc / Ref</th>
                 <th style="padding: 8px;">Item Name</th>
                 <th style="padding: 8px;">Qty</th>
-                <th style="padding: 8px;">Source / Destination</th>
+                <th style="padding: 8px;">Source / Destination / Notes</th>
               </tr>
             </thead>
             <tbody id="audit-log-tbody"></tbody>
@@ -533,23 +599,33 @@
       </div>
     </div>
 
-    <!-- Purchase Order Modal -->
+    <!-- Smart Purchase Order Modal -->
     <div class="modal-overlay" id="order-modal">
       <div class="modal">
-        <h2>Create purchase order</h2>
-        <div class="form-group">
-          <label>Select supplier</label>
-          <select id="order-supplier" onchange="renderOrderItems()">
-            <option value="">-- Choose a supplier --</option>
-          </select>
+        <h2>⚡ Smart Purchase Order</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Select Supplier</label>
+            <select id="order-supplier" onchange="renderOrderItems()">
+              <option value="">-- Choose a supplier --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Stock Target Days (Buffer)</label>
+            <select id="order-buffer-days" onchange="renderOrderItems()">
+              <option value="15">15 Days Buffer Stock</option>
+              <option value="30" selected>30 Days Buffer Stock (Default)</option>
+              <option value="60">60 Days Buffer Stock</option>
+            </select>
+          </div>
         </div>
         <div id="order-items-wrap" style="display:none;">
           <div class="order-list" id="order-items"></div>
-          <div class="order-total" id="order-total">Order total: KSh 0.00</div>
+          <div class="order-total" id="order-total" style="font-weight:600; text-align:right; margin-top:8px;">Order total: KSh 0.00</div>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn" onclick="closeOrderModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="exportOrder()">Export order CSV</button>
+          <button type="button" class="btn btn-primary" onclick="exportOrder()">Export PO CSV</button>
         </div>
       </div>
     </div>
@@ -610,14 +686,15 @@
       auditLogs = data ? Object.values(data) : [];
     });
 
-    function save() {
+    /* Granular Node Update to Prevent Conflict Overwrites */
+    function saveSingleItem(item) {
+      db.ref('items/' + item.id).update(item);
+    }
+
+    function saveAllItems() {
       const itemsMap = {};
       items.forEach(item => { itemsMap[item.id] = item; });
       db.ref('items').set(itemsMap);
-
-      const logsMap = {};
-      auditLogs.forEach(log => { logsMap[log.id] = log; });
-      db.ref('auditLogs').set(logsMap);
     }
 
     function logMovement(action, refNo, date, itemName, qty, route) {
@@ -816,12 +893,13 @@
               it.shopCartons += addVal;
               logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Shop Store`);
             }
+            saveSingleItem(it);
           }
         }
       });
 
       if (count === 0) { alert('No quantities entered.'); return; }
-      save(); closeBulkReceiveModal(); render();
+      closeBulkReceiveModal(); render();
       alert(`Received delivery for ${count} item(s) into ${dest.toUpperCase()}!`);
     }
 
@@ -840,10 +918,21 @@
       const id = parseInt(document.getElementById('transfer-id').value);
       const item = items.find(i => i.id === id);
       if (!item) return;
-      document.getElementById('transfer-info').innerHTML = `
-        <strong>${escapeHtml(item.name)}</strong><br>
-        Warehouse Available Stock: <strong>${item.whCartons} Cartons</strong> (${item.whCartons * item.qtyPerCarton} ${escapeHtml(item.unit)})
-      `;
+
+      const route = document.getElementById('transfer-route').value;
+      if (route === 'wh_to_shop') {
+        document.getElementById('transfer-info').innerHTML = `
+          <strong>${escapeHtml(item.name)}</strong><br>
+          Warehouse Stock Available: <strong>${item.whCartons} Cartons</strong> (${item.whCartons * item.qtyPerCarton} ${escapeHtml(item.unit)})<br>
+          Current Shop Stock: <strong>${item.shopCartons} Cartons</strong>
+        `;
+      } else {
+        document.getElementById('transfer-info').innerHTML = `
+          <strong>${escapeHtml(item.name)}</strong><br>
+          Shop Stock Available: <strong>${item.shopCartons} Cartons</strong> (${item.shopCartons * item.qtyPerCarton} ${escapeHtml(item.unit)})<br>
+          Current Warehouse Stock: <strong>${item.whCartons} Cartons</strong>
+        `;
+      }
       updateTransferLabel();
     }
 
@@ -851,36 +940,46 @@
       const mode = document.getElementById('transfer-unit-mode').value;
       const id = parseInt(document.getElementById('transfer-id').value);
       const item = items.find(i => i.id === id);
-      document.getElementById('transfer-qty-label').textContent = mode === 'cartons' ? 'Cartons Sold / Sent to Shop' : `Pieces (${item ? item.unit : 'pcs'}) Sold / Sent to Shop`;
+      document.getElementById('transfer-qty-label').textContent = mode === 'cartons' ? 'Cartons to Transfer' : `Pieces (${item ? item.unit : 'pcs'}) to Transfer`;
     }
 
     function closeTransferModal() { document.getElementById('transfer-modal').classList.remove('open'); }
 
-    /* Updated logic: Transferring to Shop deducts warehouse stock as SOLD */
     function processTransfer(e) {
       e.preventDefault();
       const id = parseInt(document.getElementById('transfer-id').value);
       const val = parseInt(document.getElementById('transfer-input-val').value) || 0;
-      const delNo = document.getElementById('transfer-delivery-no').value.trim() || 'N/A';
+      const route = document.getElementById('transfer-route').value;
+      const refNo = document.getElementById('transfer-delivery-no').value.trim() || 'N/A';
       const date = document.getElementById('transfer-date').value;
       const mode = document.getElementById('transfer-unit-mode').value;
-      
+
       const item = items.find(i => i.id === id);
       if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
 
-      let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+      let cartonsToMove = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
 
-      if (cartonsToDeduct > item.whCartons) {
-        alert(`Insufficient warehouse stock! Maximum available: ${item.whCartons} ctns`);
-        return;
+      if (route === 'wh_to_shop') {
+        if (cartonsToMove > item.whCartons) {
+          alert(`Insufficient warehouse stock! Max available: ${item.whCartons} ctns`);
+          return;
+        }
+        item.whCartons -= cartonsToMove;
+        item.shopCartons += cartonsToMove;
+        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode}`, 'Warehouse ➔ Shop Store');
+        alert(`Transferred ${val} ${mode} from Warehouse to Shop Store!`);
+      } else {
+        if (cartonsToMove > item.shopCartons) {
+          alert(`Insufficient shop stock! Max available: ${item.shopCartons} ctns`);
+          return;
+        }
+        item.shopCartons -= cartonsToMove;
+        item.whCartons += cartonsToMove;
+        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode}`, 'Shop Store ➔ Warehouse');
+        alert(`Transferred ${val} ${mode} from Shop Store back to Warehouse!`);
       }
 
-      // Deduct directly from Warehouse as Sold Stock
-      item.whCartons -= cartonsToDeduct;
-      logMovement('SOLD_TO_SHOP', delNo, date, item.name, `${val} ${mode}`, 'Warehouse ➔ Shop Floor (Sold)');
-
-      save(); closeTransferModal(); render();
-      alert(`Deducted ${val} ${mode} from Warehouse stock as SOLD!`);
+      saveSingleItem(item); closeTransferModal(); render();
     }
 
     function openDispatchModal(id) {
@@ -942,19 +1041,91 @@
         logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Shop ➔ Client (${client})`);
       }
 
-      save(); closeDispatchModal(); render();
+      saveSingleItem(item); closeDispatchModal(); render();
       alert(`Successfully supplied ${val} ${mode} to ${client}!`);
+    }
+
+    /* Damage / Shrinkage Loss Modal Operations */
+    function openLossModal(id) {
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      document.getElementById('loss-id').value = item.id;
+      document.getElementById('loss-input-val').value = '';
+      document.getElementById('loss-date').value = new Date().toISOString().split('T')[0];
+      updateLossInfo();
+      document.getElementById('loss-modal').classList.add('open');
+    }
+
+    function updateLossInfo() {
+      const id = parseInt(document.getElementById('loss-id').value);
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      const src = document.getElementById('loss-source').value;
+      const srcText = src === 'warehouse' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
+      document.getElementById('loss-info').innerHTML = `
+        <strong>${escapeHtml(item.name)}</strong><br>
+        Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
+      `;
+    }
+
+    function closeLossModal() { document.getElementById('loss-modal').classList.remove('open'); }
+
+    function processLoss(e) {
+      e.preventDefault();
+      const id = parseInt(document.getElementById('loss-id').value);
+      const val = parseInt(document.getElementById('loss-input-val').value) || 0;
+      const src = document.getElementById('loss-source').value;
+      const reason = document.getElementById('loss-reason').value;
+      const date = document.getElementById('loss-date').value;
+      const mode = document.getElementById('loss-unit-mode').value;
+
+      const item = items.find(i => i.id === id);
+      if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
+
+      let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+
+      if (src === 'warehouse') {
+        if (cartonsToDeduct > item.whCartons) { alert(`Insufficient warehouse stock! Max: ${item.whCartons} ctns`); return; }
+        item.whCartons -= cartonsToDeduct;
+        logMovement('DAMAGE_LOSS', 'LOSS-NOTE', date, item.name, `${val} ${mode}`, `Warehouse ➔ Loss (${reason})`);
+      } else {
+        if (cartonsToDeduct > item.shopCartons) { alert(`Insufficient shop stock! Max: ${item.shopCartons} ctns`); return; }
+        item.shopCartons -= cartonsToDeduct;
+        logMovement('DAMAGE_LOSS', 'LOSS-NOTE', date, item.name, `${val} ${mode}`, `Shop ➔ Loss (${reason})`);
+      }
+
+      saveSingleItem(item); closeLossModal(); render();
+      alert(`Logged loss of ${val} ${mode} due to: ${reason}`);
     }
 
     function openAuditLogModal() {
       document.getElementById('audit-modal').classList.add('open');
+      renderAuditLogs();
+    }
+
+    function renderAuditLogs() {
+      const filter = document.getElementById('audit-filter-action').value;
       const tbody = document.getElementById('audit-log-tbody');
-      if (!auditLogs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found.</td></tr>'; return; }
-      tbody.innerHTML = auditLogs.map(l => {
+      
+      let filteredLogs = auditLogs;
+      if (filter) {
+        filteredLogs = auditLogs.filter(l => l.action === filter);
+      }
+
+      if (!filteredLogs.length) { 
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found matching filter.</td></tr>'; 
+        return; 
+      }
+
+      tbody.innerHTML = filteredLogs.map(l => {
         let badgeColor = 'var(--accent-blue)';
         let bg = 'rgba(37,99,235,0.15)';
         if (l.action === 'RECEIVE') { badgeColor = 'var(--positive)'; bg = 'rgba(22,163,74,0.15)'; }
-        if (l.action === 'SUPPLY_CLIENT' || l.action === 'SOLD_TO_SHOP') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
+        if (l.action === 'SUPPLY_CLIENT') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
+        if (l.action === 'TRANSFER') { badgeColor = 'var(--accent-purple)'; bg = 'rgba(124,58,237,0.15)'; }
+        if (l.action === 'DAMAGE_LOSS') { badgeColor = 'var(--danger)'; bg = 'rgba(220,38,38,0.15)'; }
+        if (l.action === 'STOCK_TAKE_ADJUST') { badgeColor = 'var(--text-secondary)'; bg = 'rgba(107,114,128,0.15)'; }
+
         return `
           <tr style="border-bottom:1px solid var(--border-divider);">
             <td style="padding:8px; white-space:nowrap;">${l.date}</td>
@@ -989,6 +1160,7 @@
       renderStockTakeItems();
     }
 
+    /* Stock Take Render with Real-time Variance Calculation */
     function renderStockTakeItems() {
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
@@ -1001,33 +1173,67 @@
           <div class="order-item">
             <div class="order-item-info">
               <div class="order-item-name">${escapeHtml(it.name)}</div>
-              <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · System: ${currentCartons} Cartons (${currentCartons * it.qtyPerCarton} ${escapeHtml(it.unit)})</div>
+              <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · Expected: ${currentCartons} Cartons</div>
             </div>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <input type="number" class="order-qty" id="st-${it.id}" value="${currentCartons}" min="0">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input type="number" class="order-qty" id="st-${it.id}" value="${currentCartons}" min="0" oninput="calcVariance(${it.id}, ${currentCartons})">
               <span style="font-size:12px;">Cartons</span>
+              <span id="st-var-${it.id}" style="font-size:11px; font-weight:600; min-width:60px; text-align:right; color:var(--text-tertiary);">Var: 0</span>
             </div>
           </div>
         `;
       }).join('');
     }
 
+    function calcVariance(id, expected) {
+      const input = document.getElementById(`st-${id}`);
+      const varSpan = document.getElementById(`st-var-${id}`);
+      if (!input || !varSpan) return;
+      const physical = parseInt(input.value) || 0;
+      const variance = physical - expected;
+      
+      if (variance === 0) {
+        varSpan.textContent = 'Var: 0';
+        varSpan.style.color = 'var(--text-tertiary)';
+      } else if (variance > 0) {
+        varSpan.textContent = `Var: +${variance}`;
+        varSpan.style.color = 'var(--positive)';
+      } else {
+        varSpan.textContent = `Var: ${variance}`;
+        varSpan.style.color = 'var(--danger)';
+      }
+    }
+
     function closeStockTakeModal() { document.getElementById('stocktake-modal').classList.remove('open'); }
 
+    /* Save Stock Take with Variance Logging */
     function saveStockTake() {
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
+      const date = new Date().toISOString().split('T')[0];
       let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
+      let adjustedCount = 0;
+
       targetItems.forEach(it => {
         const input = document.getElementById(`st-${it.id}`);
         if (input) {
-          const val = Math.max(0, parseInt(input.value) || 0);
-          if (loc === 'warehouse') it.whCartons = val;
-          else it.shopCartons = val;
+          const physicalVal = Math.max(0, parseInt(input.value) || 0);
+          const systemVal = loc === 'warehouse' ? it.whCartons : it.shopCartons;
+          const diff = physicalVal - systemVal;
+
+          if (diff !== 0) {
+            adjustedCount++;
+            if (loc === 'warehouse') it.whCartons = physicalVal;
+            else it.shopCartons = physicalVal;
+
+            logMovement('STOCK_TAKE_ADJUST', 'AUDIT-COUNT', date, it.name, `${diff > 0 ? '+' : ''}${diff} Cartons`, `${loc.toUpperCase()} Audit Variance`);
+            saveSingleItem(it);
+          }
         }
       });
-      save(); closeStockTakeModal(); render();
-      alert(`Physical count updated for ${loc.toUpperCase()}!`);
+
+      closeStockTakeModal(); render();
+      alert(`Physical count saved! Adjusted ${adjustedCount} item(s) with variances into ${loc.toUpperCase()}.`);
     }
 
     function exportStockTakeForm() {
@@ -1047,13 +1253,38 @@
 
     function render() {
       const q = document.getElementById('search').value.toLowerCase();
-      let filtered = items.filter(i =>
-        i.name.toLowerCase().includes(q) ||
-        (i.model || '').toLowerCase().includes(q) ||
-        i.sku.toLowerCase().includes(q) ||
-        i.category.toLowerCase().includes(q) ||
-        (i.supplier || '').toLowerCase().includes(q)
-      );
+      const lowStockOnly = document.getElementById('filter-low-stock').checked;
+      
+      let filtered = items.filter(i => {
+        const matchesQuery = i.name.toLowerCase().includes(q) ||
+          (i.model || '').toLowerCase().includes(q) ||
+          i.sku.toLowerCase().includes(q) ||
+          i.category.toLowerCase().includes(q) ||
+          (i.supplier || '').toLowerCase().includes(q);
+        
+        const isLow = (i.whCartons + i.shopCartons) <= (i.min || 2);
+        return lowStockOnly ? (matchesQuery && isLow) : matchesQuery;
+      });
+
+      filtered.sort((a, b) => {
+        let valA = a[sortCol];
+        let valB = b[sortCol];
+
+        if (typeof valA === 'string') {
+          valA = valA.toLowerCase();
+          valB = (valB || '').toLowerCase();
+          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } else {
+          valA = valA || 0;
+          valB = valB || 0;
+          return sortDir === 'asc' ? valA - valB : valB - valA;
+        }
+      });
+
+      const arrow = sortDir === 'asc' ? ' ▲' : ' ▼';
+      document.getElementById('th-name').textContent = 'Item' + (sortCol === 'name' ? arrow : '');
+      document.getElementById('th-category').textContent = 'Category' + (sortCol === 'category' ? arrow : '');
+      document.getElementById('th-price').textContent = 'Unit price' + (sortCol === 'price' ? arrow : '');
 
       const tbody = document.getElementById('tbody');
       const empty = document.getElementById('empty');
@@ -1063,33 +1294,42 @@
         tbody.innerHTML = ''; empty.style.display = 'block'; table.style.display = 'none';
       } else {
         empty.style.display = 'none'; table.style.display = 'table';
-        tbody.innerHTML = filtered.map(it => `
-          <tr>
-            <td>
-              <div class="item-name">${escapeHtml(it.name)}</div>
-              ${it.model ? `<div class="item-model">${escapeHtml(it.model)}</div>` : ''}
-              <div class="item-sku">${escapeHtml(it.sku)}</div>
-            </td>
-            <td><span class="chip" style="background:rgba(107,114,128,0.15);">${escapeHtml(it.category)}</span></td>
-            <td>
-              <strong>${it.whCartons} Cartons</strong>
-              <div class="carton-meta">${it.whCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
-            </td>
-            <td>
-              <strong>${it.shopCartons} Cartons</strong>
-              <div class="carton-meta">${it.shopCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
-            </td>
-            <td class="price">KSh ${it.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-            <td>
-              <div class="row-actions">
-                <button class="btn btn-sm" onclick="openDispatchModal(${it.id})" title="Supply to Client">🚚 Supply</button>
-                <button class="btn btn-sm" onclick="openTransferModal(${it.id})" title="Mark as Sold to Shop">🛍️ Transfer (Sold)</button>
-                <button class="btn btn-sm" onclick="editItem(${it.id})">Edit</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteItem(${it.id})">Delete</button>
-              </div>
-            </td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = filtered.map(it => {
+          const totalCartons = it.whCartons + it.shopCartons;
+          const isLowStock = totalCartons <= (it.min || 2);
+
+          return `
+            <tr class="${isLowStock ? 'low-stock-row' : ''}">
+              <td>
+                <div class="item-name">
+                  ${escapeHtml(it.name)}
+                  ${isLowStock ? `<span class="chip chip-danger" style="font-size:10px;">⚠️ LOW STOCK</span>` : ''}
+                </div>
+                ${it.model ? `<div class="item-model">${escapeHtml(it.model)}</div>` : ''}
+                <div class="item-sku">${escapeHtml(it.sku)}</div>
+              </td>
+              <td><span class="chip" style="background:rgba(107,114,128,0.15);">${escapeHtml(it.category)}</span></td>
+              <td>
+                <strong>${it.whCartons} Cartons</strong>
+                <div class="carton-meta">${it.whCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
+              </td>
+              <td>
+                <strong>${it.shopCartons} Cartons</strong>
+                <div class="carton-meta">${it.shopCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
+              </td>
+              <td class="price">KSh ${it.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn btn-sm" onclick="openDispatchModal(${it.id})" title="Supply to Client">🚚 Supply</button>
+                  <button class="btn btn-sm" onclick="openTransferModal(${it.id})" title="Transfer Stock">🔄 Transfer</button>
+                  <button class="btn btn-sm" style="color:var(--danger); border-color:var(--danger);" onclick="openLossModal(${it.id})" title="Record Loss or Damage">🗑️ Loss</button>
+                  <button class="btn btn-sm" onclick="editItem(${it.id})">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="deleteItem(${it.id})">Delete</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
       }
 
       const totalItems = items.length;
@@ -1166,19 +1406,21 @@
         const idx = items.findIndex(i => i.id === parseInt(id));
         if (idx > -1) {
           items[idx] = { ...items[idx], ...data };
+          saveSingleItem(items[idx]);
         }
       } else {
         data.id = Date.now();
         data.whCartons = (initialLoc === 'warehouse') ? initialCartons : 0;
         data.shopCartons = (initialLoc === 'shop') ? initialCartons : 0;
         items.push(data);
+        saveSingleItem(data);
 
         if (initialCartons > 0) {
           logMovement('RECEIVE', 'INITIAL', new Date().toISOString().split('T')[0], data.name, `${initialCartons} Cartons`, `Initial Receipt ➔ ${initialLoc.toUpperCase()}`);
         }
       }
 
-      save(); updateCatList(); updateSupplierList(); closeModal(); render();
+      updateCatList(); updateSupplierList(); closeModal(); render();
     }
 
     function editItem(id) { openModal(id); }
@@ -1186,7 +1428,7 @@
       if (confirm('Delete this item?')) {
         items = items.filter(i => i.id !== id);
         db.ref('items/' + id).remove();
-        save(); updateCatList(); updateSupplierList(); render();
+        updateCatList(); updateSupplierList(); render();
       }
     }
 
@@ -1198,6 +1440,29 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'inventory_wh_shop.csv'; a.click();
       URL.revokeObjectURL(url);
+    }
+
+    function getProduct30DayMovementCartons(itemName, qtyPerCarton) {
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      let totalCartonsOut = 0;
+
+      auditLogs.forEach(log => {
+        if (log.itemName === itemName && (log.action === 'SUPPLY_CLIENT' || log.action === 'SOLD_TO_SHOP')) {
+          const logDate = new Date(log.date).getTime();
+          if (!isNaN(logDate) && logDate >= thirtyDaysAgo) {
+            let parts = (log.qty || '').split(' ');
+            let val = parseInt(parts[0]) || 0;
+            let unit = parts[1] || 'cartons';
+
+            if (unit.toLowerCase().includes('carton')) {
+              totalCartonsOut += val;
+            } else {
+              totalCartonsOut += Math.ceil(val / (qtyPerCarton || 1));
+            }
+          }
+        }
+      });
+      return totalCartonsOut;
     }
 
     function openOrderModal() {
@@ -1212,25 +1477,43 @@
 
     function renderOrderItems() {
       const supplier = document.getElementById('order-supplier').value;
+      const bufferDays = parseInt(document.getElementById('order-buffer-days').value) || 30;
       const wrap = document.getElementById('order-items-wrap');
       const container = document.getElementById('order-items');
+      
       if (!supplier) { wrap.style.display = 'none'; return; }
       const supplierItems = items.filter(i => i.supplier === supplier);
       if (!supplierItems.length) { wrap.style.display = 'none'; return; }
+      
       wrap.style.display = 'block';
+
       container.innerHTML = supplierItems.map(it => {
-        const totalCartons = it.whCartons + it.shopCartons;
-        const suggestQty = Math.max(it.min - totalCartons, 1) * it.qtyPerCarton;
+        const totalStockCartons = it.whCartons + it.shopCartons;
+        const moved30DaysCartons = getProduct30DayMovementCartons(it.name, it.qtyPerCarton);
+        
+        const dailySalesRate = moved30DaysCartons / 30;
+        const targetStockCartons = Math.max(Math.ceil(dailySalesRate * bufferDays), it.min || 1);
+        
+        const neededCartons = Math.max(0, targetStockCartons - totalStockCartons);
+        const shouldCheck = neededCartons > 0;
+
         return `
         <div class="order-item">
-          <input type="checkbox" id="chk-${it.id}" onchange="calcOrderTotal()" checked>
+          <input type="checkbox" id="chk-${it.id}" onchange="calcOrderTotal()" ${shouldCheck ? 'checked' : ''}>
           <div class="order-item-info">
             <div class="order-item-name">${escapeHtml(it.name)}</div>
-            <div class="order-item-meta">${escapeHtml(it.sku)} · Total Stock: ${totalCartons} ctns · KSh ${it.price}</div>
+            <div class="order-item-meta">
+              SKU: ${escapeHtml(it.sku)} · On Hand: ${totalStockCartons} ctns · 30-Day Sales: ${moved30DaysCartons} ctns 
+              <br><span style="color:var(--accent-orange);">Target: ${targetStockCartons} ctns (${bufferDays}d buffer)</span>
+            </div>
           </div>
-          <input type="number" class="order-qty" id="qty-${it.id}" value="${suggestQty}" min="1" onchange="calcOrderTotal()">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="number" class="order-qty" id="qty-${it.id}" value="${neededCartons}" min="0" onchange="calcOrderTotal()">
+            <span style="font-size:12px;">ctns</span>
+          </div>
         </div>
       `}).join('');
+
       calcOrderTotal();
     }
 
@@ -1239,7 +1522,10 @@
       items.forEach(it => {
         const chk = document.getElementById('chk-' + it.id);
         const qty = document.getElementById('qty-' + it.id);
-        if (chk && chk.checked && qty) total += it.price * (parseInt(qty.value) || 0);
+        if (chk && chk.checked && qty) {
+          const cartonsToOrder = parseInt(qty.value) || 0;
+          total += (it.price * it.qtyPerCarton) * cartonsToOrder;
+        }
       });
       document.getElementById('order-total').textContent = 'Order total: KSh ' + total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
@@ -1251,17 +1537,31 @@
       const orderId = 'PO-' + date.replace(/-/g,'') + '-' + Math.floor(Math.random()*1000);
       const rows = [];
       let total = 0;
+
       items.forEach(it => {
         const chk = document.getElementById('chk-' + it.id);
         const qty = document.getElementById('qty-' + it.id);
         if (chk && chk.checked && qty) {
-          const q = parseInt(qty.value) || 0;
-          const lineTotal = it.price * q;
-          total += lineTotal;
-          rows.push([it.name, it.model||'', it.sku, it.price.toFixed(2), q, lineTotal.toFixed(2)]);
+          const cartons = parseInt(qty.value) || 0;
+          if (cartons > 0) {
+            const lineTotal = (it.price * it.qtyPerCarton) * cartons;
+            total += lineTotal;
+            rows.push([it.name, it.model||'', it.sku, cartons, it.qtyPerCarton, (it.price * it.qtyPerCarton).toFixed(2), lineTotal.toFixed(2)]);
+          }
         }
       });
-      const csvLines = [`"Purchase Order","${supplier}","${date}","${orderId}"`, '', '"Item","Model","SKU","Unit Price","Qty","Total"', ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')), '', ` "Order total",,,,,"${total.toFixed(2)}"`];
+
+      if (!rows.length) { alert('No items checked with quantity > 0.'); return; }
+
+      const csvLines = [
+        `"Purchase Order","${supplier}","${date}","${orderId}"`,
+        '',
+        '"Item","Model","SKU","Cartons Ordered","Units Per Carton","Carton Price","Total Line KSh"',
+        ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')),
+        '',
+        ` "Order Total KSh",,,,,,"${total.toFixed(2)}"`
+      ];
+      
       const blob = new Blob([csvLines.join('\n')], {type:'text/csv'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `${orderId}.csv`; a.click();
@@ -1274,6 +1574,7 @@
     document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
     document.getElementById('transfer-modal').addEventListener('click', e => { if (e.target === document.getElementById('transfer-modal')) closeTransferModal(); });
     document.getElementById('dispatch-modal').addEventListener('click', e => { if (e.target === document.getElementById('dispatch-modal')) closeDispatchModal(); });
+    document.getElementById('loss-modal').addEventListener('click', e => { if (e.target === document.getElementById('loss-modal')) closeLossModal(); });
     document.getElementById('order-modal').addEventListener('click', e => { if (e.target === document.getElementById('order-modal')) closeOrderModal(); });
   </script>
 </body>
