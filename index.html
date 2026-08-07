@@ -43,7 +43,7 @@
       padding: 24px;
       line-height: 1.5;
     }
-    .container { max-width: 1200px; margin: 0 auto; }
+    .container { max-width: 1250px; margin: 0 auto; }
     .header {
       display: flex;
       justify-content: space-between;
@@ -56,7 +56,7 @@
     h1 { margin: 0; font-size: 22px; font-weight: 600; }
     .stats-row {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 12px;
       margin-bottom: 20px;
     }
@@ -67,7 +67,7 @@
       background: var(--surface);
     }
     .stat-label { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
-    .stat-value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .stat-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
     .toolbar {
       display: flex;
       gap: 8px;
@@ -149,6 +149,7 @@
       font-weight: 500;
     }
     .chip-danger { background: rgba(220,38,38,0.15); color: var(--danger); }
+    .chip-positive { background: rgba(22,163,74,0.15); color: var(--positive); }
     .empty-state { text-align: center; padding: 48px 24px; color: var(--text-tertiary); }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.4);
@@ -227,7 +228,11 @@
         <div class="stat-value" id="stat-total">0</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Total Value</div>
+        <div class="stat-label">Total Cost</div>
+        <div class="stat-value" id="stat-cost" style="color:var(--text-secondary);">KSh 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Value (Retail)</div>
         <div class="stat-value" id="stat-value">KSh 0</div>
       </div>
       <div class="stat-card">
@@ -261,7 +266,9 @@
             <th id="th-category" onclick="sortBy('category')">Category</th>
             <th>Warehouse Balance</th>
             <th>Shop Balance</th>
-            <th id="th-price" onclick="sortBy('price')">Unit price</th>
+            <th id="th-cost" onclick="sortBy('cost')">Unit Cost</th>
+            <th id="th-price" onclick="sortBy('price')">Unit Price</th>
+            <th>Margin %</th>
             <th style="width: 270px;">Actions</th>
           </tr>
         </thead>
@@ -327,19 +334,27 @@
 
           <div class="form-row">
             <div class="form-group">
+              <label>Unit Cost (Buying Price KSh)</label>
+              <input type="number" id="f-cost" min="0" step="0.01" required placeholder="Cost per piece">
+            </div>
+            <div class="form-group">
+              <label>Unit Price (Selling Price KSh)</label>
+              <input type="number" id="f-price" min="0" step="0.01" required placeholder="Selling price per piece">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
               <label>Min Stock Threshold (Total Cartons)</label>
               <input type="number" id="f-min" min="0" required value="2">
             </div>
             <div class="form-group">
-              <label>Unit price (KSh)</label>
-              <input type="number" id="f-price" min="0" step="0.01" required>
+              <label>Supplier</label>
+              <input type="text" id="f-supplier" list="supplier-list" placeholder="Start typing supplier name...">
+              <datalist id="supplier-list"></datalist>
             </div>
           </div>
-          <div class="form-group">
-            <label>Supplier</label>
-            <input type="text" id="f-supplier" list="supplier-list" placeholder="Start typing supplier name...">
-            <datalist id="supplier-list"></datalist>
-          </div>
+
           <div class="modal-actions">
             <button type="button" class="btn" onclick="closeModal()">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Item</button>
@@ -686,15 +701,8 @@
       auditLogs = data ? Object.values(data) : [];
     });
 
-    /* Granular Node Update to Prevent Conflict Overwrites */
     function saveSingleItem(item) {
       db.ref('items/' + item.id).update(item);
-    }
-
-    function saveAllItems() {
-      const itemsMap = {};
-      items.forEach(item => { itemsMap[item.id] = item; });
-      db.ref('items').set(itemsMap);
     }
 
     function logMovement(action, refNo, date, itemName, qty, route) {
@@ -742,8 +750,9 @@
               whCartons: parseInt(row[5]) || 0,
               shopCartons: parseInt(row[6]) || 0,
               unit: row[7] || 'pcs',
-              price: parseFloat(row[8]) || 0,
-              supplier: row[9] || '',
+              cost: parseFloat(row[8]) || 0,
+              price: parseFloat(row[9]) || 0,
+              supplier: row[10] || '',
               min: 2
             };
             importedCount++;
@@ -1045,7 +1054,6 @@
       alert(`Successfully supplied ${val} ${mode} to ${client}!`);
     }
 
-    /* Damage / Shrinkage Loss Modal Operations */
     function openLossModal(id) {
       const item = items.find(i => i.id === id);
       if (!item) return;
@@ -1160,7 +1168,6 @@
       renderStockTakeItems();
     }
 
-    /* Stock Take Render with Real-time Variance Calculation */
     function renderStockTakeItems() {
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
@@ -1206,7 +1213,6 @@
 
     function closeStockTakeModal() { document.getElementById('stocktake-modal').classList.remove('open'); }
 
-    /* Save Stock Take with Variance Logging */
     function saveStockTake() {
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
@@ -1284,7 +1290,8 @@
       const arrow = sortDir === 'asc' ? ' ▲' : ' ▼';
       document.getElementById('th-name').textContent = 'Item' + (sortCol === 'name' ? arrow : '');
       document.getElementById('th-category').textContent = 'Category' + (sortCol === 'category' ? arrow : '');
-      document.getElementById('th-price').textContent = 'Unit price' + (sortCol === 'price' ? arrow : '');
+      document.getElementById('th-cost').textContent = 'Unit Cost' + (sortCol === 'cost' ? arrow : '');
+      document.getElementById('th-price').textContent = 'Unit Price' + (sortCol === 'price' ? arrow : '');
 
       const tbody = document.getElementById('tbody');
       const empty = document.getElementById('empty');
@@ -1297,6 +1304,13 @@
         tbody.innerHTML = filtered.map(it => {
           const totalCartons = it.whCartons + it.shopCartons;
           const isLowStock = totalCartons <= (it.min || 2);
+          const costVal = it.cost || 0;
+          const priceVal = it.price || 0;
+          
+          let marginPct = 0;
+          if (priceVal > 0) {
+            marginPct = ((priceVal - costVal) / priceVal) * 100;
+          }
 
           return `
             <tr class="${isLowStock ? 'low-stock-row' : ''}">
@@ -1317,7 +1331,13 @@
                 <strong>${it.shopCartons} Cartons</strong>
                 <div class="carton-meta">${it.shopCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
               </td>
-              <td class="price">KSh ${it.price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+              <td class="price" style="color:var(--text-secondary);">KSh ${costVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+              <td class="price"><strong>KSh ${priceVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td>
+              <td>
+                <span class="chip ${marginPct >= 0 ? 'chip-positive' : 'chip-danger'}">
+                  ${marginPct.toFixed(1)}%
+                </span>
+              </td>
               <td>
                 <div class="row-actions">
                   <button class="btn btn-sm" onclick="openDispatchModal(${it.id})" title="Supply to Client">🚚 Supply</button>
@@ -1335,10 +1355,12 @@
       const totalItems = items.length;
       const totalWhCartons = items.reduce((s, i) => s + i.whCartons, 0);
       const totalShopCartons = items.reduce((s, i) => s + i.shopCartons, 0);
-      const totalVal = items.reduce((s, i) => s + ((i.whCartons + i.shopCartons) * i.qtyPerCarton * i.price), 0);
+      const totalCostVal = items.reduce((s, i) => s + ((i.whCartons + i.shopCartons) * i.qtyPerCarton * (i.cost || 0)), 0);
+      const totalRetailVal = items.reduce((s, i) => s + ((i.whCartons + i.shopCartons) * i.qtyPerCarton * (i.price || 0)), 0);
 
       document.getElementById('stat-total').textContent = totalItems;
-      document.getElementById('stat-value').textContent = 'KSh ' + totalVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
+      document.getElementById('stat-cost').textContent = 'KSh ' + totalCostVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
+      document.getElementById('stat-value').textContent = 'KSh ' + totalRetailVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
       document.getElementById('stat-wh').textContent = totalWhCartons + ' ctns';
       document.getElementById('stat-shop').textContent = totalShopCartons + ' ctns';
     }
@@ -1371,8 +1393,9 @@
           document.getElementById('f-category').value = it.category;
           document.getElementById('f-qtyPerCarton').value = it.qtyPerCarton || 1;
           document.getElementById('f-unit').value = it.unit;
+          document.getElementById('f-cost').value = it.cost || 0;
+          document.getElementById('f-price').value = it.price || 0;
           document.getElementById('f-min').value = it.min;
-          document.getElementById('f-price').value = it.price;
           document.getElementById('f-supplier').value = it.supplier || '';
         }
       } else {
@@ -1397,8 +1420,9 @@
         category: document.getElementById('f-category').value.trim(),
         qtyPerCarton: parseInt(document.getElementById('f-qtyPerCarton').value) || 1,
         unit: document.getElementById('f-unit').value.trim(),
-        min: parseInt(document.getElementById('f-min').value) || 0,
+        cost: parseFloat(document.getElementById('f-cost').value) || 0,
         price: parseFloat(document.getElementById('f-price').value) || 0,
+        min: parseInt(document.getElementById('f-min').value) || 0,
         supplier: document.getElementById('f-supplier').value.trim()
       };
 
@@ -1433,8 +1457,8 @@
     }
 
     function exportCSV() {
-      const headers = ['Name','Model','SKU','Category','Qty Per Carton','Warehouse Cartons','Shop Cartons','Unit','Unit Price','Supplier'];
-      const rows = items.map(i => [i.name, i.model||'', i.sku, i.category, i.qtyPerCarton, i.whCartons, i.shopCartons, i.unit, i.price, i.supplier||'']);
+      const headers = ['Name','Model','SKU','Category','Qty Per Carton','Warehouse Cartons','Shop Cartons','Unit','Unit Cost','Unit Price','Supplier'];
+      const rows = items.map(i => [i.name, i.model||'', i.sku, i.category, i.qtyPerCarton, i.whCartons, i.shopCartons, i.unit, i.cost||0, i.price||0, i.supplier||'']);
       const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
       const url = URL.createObjectURL(blob);
@@ -1524,10 +1548,10 @@
         const qty = document.getElementById('qty-' + it.id);
         if (chk && chk.checked && qty) {
           const cartonsToOrder = parseInt(qty.value) || 0;
-          total += (it.price * it.qtyPerCarton) * cartonsToOrder;
+          total += ((it.cost || it.price) * it.qtyPerCarton) * cartonsToOrder;
         }
       });
-      document.getElementById('order-total').textContent = 'Order total: KSh ' + total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+      document.getElementById('order-total').textContent = 'Order total (Est. Cost): KSh ' + total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
     }
 
     function exportOrder() {
@@ -1544,9 +1568,10 @@
         if (chk && chk.checked && qty) {
           const cartons = parseInt(qty.value) || 0;
           if (cartons > 0) {
-            const lineTotal = (it.price * it.qtyPerCarton) * cartons;
+            const unitCostVal = it.cost || it.price;
+            const lineTotal = (unitCostVal * it.qtyPerCarton) * cartons;
             total += lineTotal;
-            rows.push([it.name, it.model||'', it.sku, cartons, it.qtyPerCarton, (it.price * it.qtyPerCarton).toFixed(2), lineTotal.toFixed(2)]);
+            rows.push([it.name, it.model||'', it.sku, cartons, it.qtyPerCarton, (unitCostVal * it.qtyPerCarton).toFixed(2), lineTotal.toFixed(2)]);
           }
         }
       });
@@ -1556,10 +1581,10 @@
       const csvLines = [
         `"Purchase Order","${supplier}","${date}","${orderId}"`,
         '',
-        '"Item","Model","SKU","Cartons Ordered","Units Per Carton","Carton Price","Total Line KSh"',
+        '"Item","Model","SKU","Cartons Ordered","Units Per Carton","Carton Est. Cost","Total Line KSh"',
         ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')),
         '',
-        ` "Order Total KSh",,,,,,"${total.toFixed(2)}"`
+        ` "Order Est. Total KSh",,,,,,"${total.toFixed(2)}"`
       ];
       
       const blob = new Blob([csvLines.join('\n')], {type:'text/csv'});
