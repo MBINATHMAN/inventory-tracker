@@ -370,7 +370,7 @@
         <div class="form-row">
           <div class="form-group">
             <label style="font-weight:600;">Select Supplier</label>
-            <select id="receive-supplier-select" onchange="renderBulkReceiveItems()">
+            <select id="receive-supplier-select" onchange="receiveQtyMap={}; renderBulkReceiveItems();">
               <option value="">-- Choose Supplier --</option>
             </select>
           </div>
@@ -675,6 +675,7 @@
     let sortCol = 'name';
     let sortDir = 'asc';
     let skuEdited = false;
+    let receiveQtyMap = {}; // State memory for typed receiving quantities
 
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
@@ -796,6 +797,7 @@
     }
 
     function openBulkReceiveModal() {
+      receiveQtyMap = {};
       document.getElementById('bulk-receive-modal').classList.add('open');
       document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
       document.getElementById('rec-invoice-no').value = '';
@@ -808,7 +810,17 @@
 
     function closeBulkReceiveModal() { document.getElementById('bulk-receive-modal').classList.remove('open'); }
 
+    /* Helper: Saves active input field values to memory map before re-rendering */
+    function saveCurrentReceiveInputsToMap() {
+      const inputs = document.querySelectorAll('#bulk-receive-items input.order-qty');
+      inputs.forEach(input => {
+        const id = input.id.replace('rec-', '');
+        receiveQtyMap[id] = parseInt(input.value) || 0;
+      });
+    }
+
     function renderBulkReceiveItems() {
+      saveCurrentReceiveInputsToMap();
       const supplier = document.getElementById('receive-supplier-select').value;
       const query = (document.getElementById('rec-search').value || '').toLowerCase().trim();
       const container = document.getElementById('bulk-receive-items');
@@ -856,6 +868,7 @@
         `;
 
         grouped[cat].forEach(it => {
+          const currentTypedVal = receiveQtyMap[it.id] || 0;
           html += `
             <div class="order-item">
               <div class="order-item-info">
@@ -864,7 +877,7 @@
               </div>
               <div style="display:flex; align-items:center; gap:6px;">
                 <span style="font-size:12px; color:var(--text-tertiary);">+ Cartons:</span>
-                <input type="number" class="order-qty" id="rec-${it.id}" value="0" min="0">
+                <input type="number" class="order-qty" id="rec-${it.id}" value="${currentTypedVal}" min="0" oninput="receiveQtyMap[${it.id}] = parseInt(this.value) || 0">
               </div>
             </div>
           `;
@@ -880,6 +893,7 @@
     }
 
     function processBulkReceive() {
+      saveCurrentReceiveInputsToMap();
       const supplier = document.getElementById('receive-supplier-select').value;
       const dest = document.getElementById('rec-destination').value;
       const invoiceNo = document.getElementById('rec-invoice-no').value.trim() || 'N/A';
@@ -890,20 +904,17 @@
       let count = 0;
 
       supplierItems.forEach(it => {
-        const input = document.getElementById(`rec-${it.id}`);
-        if (input) {
-          const addVal = parseInt(input.value) || 0;
-          if (addVal > 0) {
-            count++;
-            if (dest === 'warehouse') {
-              it.whCartons += addVal;
-              logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Warehouse`);
-            } else {
-              it.shopCartons += addVal;
-              logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Shop Store`);
-            }
-            saveSingleItem(it);
+        const addVal = receiveQtyMap[it.id] || 0;
+        if (addVal > 0) {
+          count++;
+          if (dest === 'warehouse') {
+            it.whCartons += addVal;
+            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Warehouse`);
+          } else {
+            it.shopCartons += addVal;
+            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Shop Store`);
           }
+          saveSingleItem(it);
         }
       });
 
