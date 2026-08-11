@@ -370,7 +370,7 @@
         <div class="form-row">
           <div class="form-group">
             <label style="font-weight:600;">Select Supplier</label>
-            <select id="receive-supplier-select" onchange="receiveQtyMap={}; renderBulkReceiveItems();">
+            <select id="receive-supplier-select" onchange="renderBulkReceiveItems(true)">
               <option value="">-- Choose Supplier --</option>
             </select>
           </div>
@@ -553,16 +553,19 @@
     <!-- Movement Audit Log Modal -->
     <div class="modal-overlay" id="audit-modal">
       <div class="modal" style="max-width: 880px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
           <h2 style="margin:0;">📜 Stock Movement Audit Log</h2>
-          <select id="audit-filter-action" onchange="renderAuditLogs()" style="width:200px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; background:var(--bg); color:var(--text);">
-            <option value="">All Actions</option>
-            <option value="RECEIVE">RECEIVE (Inbound)</option>
-            <option value="SUPPLY_CLIENT">SUPPLY_CLIENT (Outbound)</option>
-            <option value="TRANSFER">TRANSFER (Inter-location)</option>
-            <option value="DAMAGE_LOSS">DAMAGE_LOSS (Shrinkage)</option>
-            <option value="STOCK_TAKE_ADJUST">STOCK_TAKE_ADJUST</option>
-          </select>
+          <div style="display:flex; gap:8px; flex:1; max-width:520px;">
+            <input type="text" class="search-input" id="audit-search" placeholder="🔍 Search Invoice No, Delivery No, Client, Item..." oninput="renderAuditLogs()" style="padding:6px 10px; font-size:13px;">
+            <select id="audit-filter-action" onchange="renderAuditLogs()" style="width:180px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; background:var(--bg); color:var(--text);">
+              <option value="">All Actions</option>
+              <option value="RECEIVE">RECEIVE (Inbound)</option>
+              <option value="SUPPLY_CLIENT">SUPPLY_CLIENT (Outbound)</option>
+              <option value="TRANSFER">TRANSFER (Inter-location)</option>
+              <option value="DAMAGE_LOSS">DAMAGE_LOSS (Shrinkage)</option>
+              <option value="STOCK_TAKE_ADJUST">STOCK_TAKE_ADJUST</option>
+            </select>
+          </div>
         </div>
         <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin: 12px 0;">
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
@@ -675,7 +678,7 @@
     let sortCol = 'name';
     let sortDir = 'asc';
     let skuEdited = false;
-    let receiveQtyMap = {}; // State memory for typed receiving quantities
+    let receiveQtyMap = {};
 
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
@@ -699,7 +702,11 @@
 
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
-      auditLogs = data ? Object.values(data) : [];
+      // Ensure logs are ordered newest first by ID
+      auditLogs = data ? Object.values(data).sort((a,b) => b.id - a.id) : [];
+      if (document.getElementById('audit-modal').classList.contains('open')) {
+        renderAuditLogs();
+      }
     });
 
     function saveSingleItem(item) {
@@ -739,7 +746,7 @@
 
         for (let i = 1; i < lines.length; i++) {
           const row = lines[i].split(',').map(cell => cell.replace(/^"(.*)"$/, '$1').trim());
-          if (row.length >= 8) {
+          if (row.length >= 10) {
             const id = Date.now() + i;
             newItemsMap[id] = {
               id: id,
@@ -810,7 +817,6 @@
 
     function closeBulkReceiveModal() { document.getElementById('bulk-receive-modal').classList.remove('open'); }
 
-    /* Helper: Saves active input field values to memory map before re-rendering */
     function saveCurrentReceiveInputsToMap() {
       const inputs = document.querySelectorAll('#bulk-receive-items input.order-qty');
       inputs.forEach(input => {
@@ -819,8 +825,10 @@
       });
     }
 
-    function renderBulkReceiveItems() {
-      saveCurrentReceiveInputsToMap();
+    function renderBulkReceiveItems(resetMap = false) {
+      if (resetMap) receiveQtyMap = {};
+      else saveCurrentReceiveInputsToMap();
+
       const supplier = document.getElementById('receive-supplier-select').value;
       const query = (document.getElementById('rec-search').value || '').toLowerCase().trim();
       const container = document.getElementById('bulk-receive-items');
@@ -1118,21 +1126,35 @@
     }
 
     function openAuditLogModal() {
+      document.getElementById('audit-search').value = '';
+      document.getElementById('audit-filter-action').value = '';
       document.getElementById('audit-modal').classList.add('open');
       renderAuditLogs();
     }
 
     function renderAuditLogs() {
       const filter = document.getElementById('audit-filter-action').value;
+      const q = (document.getElementById('audit-search')?.value || '').toLowerCase().trim();
       const tbody = document.getElementById('audit-log-tbody');
       
       let filteredLogs = auditLogs;
+      
       if (filter) {
-        filteredLogs = auditLogs.filter(l => l.action === filter);
+        filteredLogs = filteredLogs.filter(l => l.action === filter);
+      }
+
+      if (q) {
+        filteredLogs = filteredLogs.filter(l =>
+          (l.refNo || '').toLowerCase().includes(q) ||
+          (l.itemName || '').toLowerCase().includes(q) ||
+          (l.route || '').toLowerCase().includes(q) ||
+          (l.date || '').toLowerCase().includes(q) ||
+          (l.action || '').toLowerCase().includes(q)
+        );
       }
 
       if (!filteredLogs.length) { 
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found matching filter.</td></tr>'; 
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found matching search / filter.</td></tr>'; 
         return; 
       }
 
