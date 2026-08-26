@@ -451,7 +451,7 @@
       </div>
     </div>
 
-    <!-- Direct Client Delivery / Supply Modal -->
+    <!-- Direct Client Delivery / Supply Modal (UPGRADED WITH CLIENT DATALIST) -->
     <div class="modal-overlay" id="dispatch-modal">
       <div class="modal">
         <h2>🚚 Supply Goods to Client / Order Dispatch</h2>
@@ -486,7 +486,8 @@
           </div>
           <div class="form-group">
             <label>Client / Recipient Name</label>
-            <input type="text" id="dispatch-client" required placeholder="e.g. ABC Wholesale Ltd, John Doe, Retail Customer">
+            <input type="text" id="dispatch-client" list="client-list" required placeholder="Start typing or enter new client name..." autocomplete="off">
+            <datalist id="client-list"></datalist>
           </div>
           <div class="form-group">
             <label id="dispatch-qty-label">Quantity Dispatched</label>
@@ -675,6 +676,7 @@
 
     let items = [];
     let auditLogs = [];
+    let clients = [];
     let sortCol = 'name';
     let sortDir = 'asc';
     let skuEdited = false;
@@ -702,11 +704,17 @@
 
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
-      // Ensure logs are ordered newest first by ID
       auditLogs = data ? Object.values(data).sort((a,b) => b.id - a.id) : [];
       if (document.getElementById('audit-modal').classList.contains('open')) {
         renderAuditLogs();
       }
+    });
+
+    // Persistent Clients Listener from Firebase Cloud
+    db.ref('clients').on('value', (snapshot) => {
+      const data = snapshot.val();
+      clients = data ? Object.values(data) : [];
+      updateClientList();
     });
 
     function saveSingleItem(item) {
@@ -786,6 +794,25 @@
     function updateSupplierList() {
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       document.getElementById('supplier-list').innerHTML = suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    }
+
+    function updateClientList() {
+      const datalist = document.getElementById('client-list');
+      if (!datalist) return;
+      const sortedClients = [...new Set(clients.map(c => c.name))].sort();
+      datalist.innerHTML = sortedClients.map(name => `<option value="${escapeHtml(name)}">`).join('');
+    }
+
+    function saveClientIfNew(clientName) {
+      if (!clientName) return;
+      const formatted = clientName.trim();
+      const exists = clients.some(c => c.name.toLowerCase() === formatted.toLowerCase());
+      
+      if (!exists) {
+        const newId = Date.now();
+        const newClient = { id: newId, name: formatted };
+        db.ref('clients/' + newId).set(newClient);
+      }
     }
 
     function escapeHtml(t) {
@@ -1018,6 +1045,7 @@
       document.getElementById('dispatch-delivery-no').value = '';
       document.getElementById('dispatch-client').value = '';
       document.getElementById('dispatch-date').value = new Date().toISOString().split('T')[0];
+      updateClientList();
       updateDispatchInfo();
       document.getElementById('dispatch-modal').classList.add('open');
     }
@@ -1068,6 +1096,9 @@
         item.shopCartons -= cartonsToDeduct;
         logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Shop ➔ Client (${client})`);
       }
+
+      // Automatically remember and save new clients to Firebase
+      saveClientIfNew(client);
 
       saveSingleItem(item); closeDispatchModal(); render();
       alert(`Successfully supplied ${val} ${mode} to ${client}!`);
