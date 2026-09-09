@@ -250,6 +250,7 @@
       <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; padding: 0 4px;">
         <input type="checkbox" id="filter-low-stock" onchange="render()"> ⚠️ Low Stock Only
       </label>
+      <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openCategoryManagerModal()">🏷️ Manage Categories</button>
       <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
       <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
@@ -276,6 +277,20 @@
       </table>
       <div class="empty-state" id="empty" style="display:none;">
         <p>No items found. Add your first product or click "Import CSV Data".</p>
+      </div>
+    </div>
+
+    <!-- Category Manager Modal -->
+    <div class="modal-overlay" id="category-modal">
+      <div class="modal" style="max-width: 600px;">
+        <h2>🏷️ Manage Categories</h2>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
+          Rename or delete misspelled categories. Renaming will update all associated items. Deleting sets affected items to "General".
+        </p>
+        <div class="order-list" id="category-manager-list" style="max-height: 350px;"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeCategoryManagerModal()">Close</button>
+        </div>
       </div>
     </div>
 
@@ -682,7 +697,6 @@
     let skuEdited = false;
     let receiveQtyMap = {};
 
-    // Date formatting helper: converts ISO/YYYY-MM-DD or date string to DD/MM/YYYY
     function formatDateToDDMMYYYY(dateStr) {
       if (!dateStr) return '';
       const parts = dateStr.split('T')[0].split('-');
@@ -692,7 +706,6 @@
       return dateStr;
     }
 
-    // Returns today's date formatted as DD/MM/YYYY
     function getTodayDDMMYYYY() {
       const now = new Date();
       const dd = String(now.getDate()).padStart(2, '0');
@@ -719,6 +732,9 @@
       updateCatList();
       updateSupplierList();
       render();
+      if (document.getElementById('category-modal').classList.contains('open')) {
+        renderCategoryManager();
+      }
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
@@ -737,6 +753,75 @@
 
     function saveSingleItem(item) {
       db.ref('items/' + item.id).update(item);
+    }
+
+    function openCategoryManagerModal() {
+      document.getElementById('category-modal').classList.add('open');
+      renderCategoryManager();
+    }
+
+    function closeCategoryManagerModal() {
+      document.getElementById('category-modal').classList.remove('open');
+    }
+
+    function renderCategoryManager() {
+      const list = document.getElementById('category-manager-list');
+      const categories = [...new Set(items.map(i => i.category || 'General'))].sort();
+
+      if (!categories.length) {
+        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No categories found.</p>';
+        return;
+      }
+
+      list.innerHTML = categories.map(cat => {
+        const count = items.filter(i => (i.category || 'General') === cat).length;
+        return `
+          <div class="order-item" style="padding:10px 0;">
+            <div class="order-item-info">
+              <div class="order-item-name">📁 ${escapeHtml(cat)}</div>
+              <div class="order-item-meta">${count} item(s) tagged</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-sm" onclick="renameCategory('${escapeHtml(cat)}')">✏️ Rename</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteCategory('${escapeHtml(cat)}')">🗑️ Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renameCategory(oldCat) {
+      const newCat = prompt(`Enter new correct name for category "${oldCat}":`, oldCat);
+      if (!newCat || newCat.trim() === '' || newCat.trim() === oldCat) return;
+      const formatted = newCat.trim();
+
+      let updatedCount = 0;
+      items.forEach(it => {
+        if ((it.category || 'General') === oldCat) {
+          it.category = formatted;
+          saveSingleItem(it);
+          updatedCount++;
+        }
+      });
+
+      alert(`Successfully renamed category to "${formatted}" across ${updatedCount} product(s)!`);
+      renderCategoryManager();
+    }
+
+    function deleteCategory(oldCat) {
+      if (!confirm(`Are you sure you want to delete the category "${oldCat}"?\n\nProducts currently in this category will be reset to "General".`)) return;
+
+      let updatedCount = 0;
+      items.forEach(it => {
+        if ((it.category || 'General') === oldCat) {
+          it.category = 'General';
+          saveSingleItem(it);
+          updatedCount++;
+        }
+      });
+
+      alert(`Category "${oldCat}" removed! Reassigned ${updatedCount} product(s) to "General".`);
+      renderCategoryManager();
     }
 
     function logMovement(action, refNo, dateStr, itemName, qty, route) {
@@ -1557,7 +1642,6 @@
       auditLogs.forEach(log => {
         if (log.itemName === itemName && (log.action === 'SUPPLY_CLIENT' || log.action === 'SOLD_TO_SHOP')) {
           let logDate = new Date(log.date).getTime();
-          // Handle DD/MM/YYYY parsing for calculation
           if (isNaN(logDate) && typeof log.date === 'string') {
             const parts = log.date.split('/');
             if (parts.length === 3) {
@@ -1686,6 +1770,7 @@
     }
 
     document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+    document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
     document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
     document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
     document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
