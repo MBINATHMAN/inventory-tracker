@@ -451,7 +451,7 @@
       </div>
     </div>
 
-    <!-- Direct Client Delivery / Supply Modal (UPGRADED WITH CLIENT DATALIST) -->
+    <!-- Direct Client Delivery / Supply Modal -->
     <div class="modal-overlay" id="dispatch-modal">
       <div class="modal">
         <h2>🚚 Supply Goods to Client / Order Dispatch</h2>
@@ -694,6 +694,7 @@
       }
     });
 
+    // Realtime product database sync
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
@@ -702,6 +703,7 @@
       render();
     });
 
+    // Movement audit log listener
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).sort((a,b) => b.id - a.id) : [];
@@ -710,7 +712,7 @@
       }
     });
 
-    // Persistent Clients Listener from Firebase Cloud
+    // Persistent clients registry listener
     db.ref('clients').on('value', (snapshot) => {
       const data = snapshot.val();
       clients = data ? Object.values(data) : [];
@@ -1097,7 +1099,6 @@
         logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Shop ➔ Client (${client})`);
       }
 
-      // Automatically remember and save new clients to Firebase
       saveClientIfNew(client);
 
       saveSingleItem(item); closeDispatchModal(); render();
