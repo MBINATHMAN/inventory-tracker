@@ -557,7 +557,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
           <h2 style="margin:0;">📜 Stock Movement Audit Log</h2>
           <div style="display:flex; gap:8px; flex:1; max-width:520px;">
-            <input type="text" class="search-input" id="audit-search" placeholder="🔍 Search Invoice No, Delivery No, Client, Item..." oninput="renderAuditLogs()" style="padding:6px 10px; font-size:13px;">
+            <input type="text" class="search-input" id="audit-search" placeholder="🔍 Search Invoice No, Delivery No, Client, Item, Date..." oninput="renderAuditLogs()" style="padding:6px 10px; font-size:13px;">
             <select id="audit-filter-action" onchange="renderAuditLogs()" style="width:180px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; background:var(--bg); color:var(--text);">
               <option value="">All Actions</option>
               <option value="RECEIVE">RECEIVE (Inbound)</option>
@@ -572,7 +572,7 @@
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
             <thead>
               <tr style="background: var(--surface);">
-                <th style="padding: 8px;">Date</th>
+                <th style="padding: 8px;">Date (DD/MM/YYYY)</th>
                 <th style="padding: 8px;">Action</th>
                 <th style="padding: 8px;">Doc / Ref</th>
                 <th style="padding: 8px;">Item Name</th>
@@ -682,6 +682,25 @@
     let skuEdited = false;
     let receiveQtyMap = {};
 
+    // Date formatting helper: converts ISO/YYYY-MM-DD or date string to DD/MM/YYYY
+    function formatDateToDDMMYYYY(dateStr) {
+      if (!dateStr) return '';
+      const parts = dateStr.split('T')[0].split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      return dateStr;
+    }
+
+    // Returns today's date formatted as DD/MM/YYYY
+    function getTodayDDMMYYYY() {
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
       const label = document.getElementById('sync-label');
@@ -694,7 +713,6 @@
       }
     });
 
-    // Realtime product database sync
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
@@ -703,7 +721,6 @@
       render();
     });
 
-    // Movement audit log listener
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).sort((a,b) => b.id - a.id) : [];
@@ -712,7 +729,6 @@
       }
     });
 
-    // Persistent clients registry listener
     db.ref('clients').on('value', (snapshot) => {
       const data = snapshot.val();
       clients = data ? Object.values(data) : [];
@@ -723,12 +739,13 @@
       db.ref('items/' + item.id).update(item);
     }
 
-    function logMovement(action, refNo, date, itemName, qty, route) {
+    function logMovement(action, refNo, dateStr, itemName, qty, route) {
+      const formattedDate = formatDateToDDMMYYYY(dateStr);
       const newLog = {
         id: Date.now() + Math.floor(Math.random() * 1000),
         action: action, 
         refNo: refNo || 'N/A',
-        date: date,
+        date: formattedDate,
         itemName: itemName,
         qty: qty,
         route: route
@@ -1199,9 +1216,11 @@
         if (l.action === 'DAMAGE_LOSS') { badgeColor = 'var(--danger)'; bg = 'rgba(220,38,38,0.15)'; }
         if (l.action === 'STOCK_TAKE_ADJUST') { badgeColor = 'var(--text-secondary)'; bg = 'rgba(107,114,128,0.15)'; }
 
+        const displayDate = formatDateToDDMMYYYY(l.date);
+
         return `
           <tr style="border-bottom:1px solid var(--border-divider);">
-            <td style="padding:8px; white-space:nowrap;">${l.date}</td>
+            <td style="padding:8px; white-space:nowrap;">${displayDate}</td>
             <td style="padding:8px;"><span class="chip" style="font-size:10px; background:${bg}; color:${badgeColor};">${l.action}</span></td>
             <td style="padding:8px; font-weight:600; font-family:var(--font-mono);">${escapeHtml(l.refNo)}</td>
             <td style="padding:8px;">${escapeHtml(l.itemName)}</td>
@@ -1216,12 +1235,12 @@
 
     function exportAuditLogCSV() {
       if (!auditLogs.length) { alert('No logs available.'); return; }
-      const headers = ['Date', 'Action', 'Ref No', 'Item Name', 'Quantity', 'Route / Notes'];
-      const rows = auditLogs.map(l => [l.date, l.action, l.refNo, l.itemName, l.qty, l.route]);
+      const headers = ['Date (DD/MM/YYYY)', 'Action', 'Ref No', 'Item Name', 'Quantity', 'Route / Notes'];
+      const rows = auditLogs.map(l => [formatDateToDDMMYYYY(l.date), l.action, l.refNo, l.itemName, l.qty, l.route]);
       const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `Stock_Logs_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = `Stock_Logs_${getTodayDDMMYYYY().replace(/\//g,'-')}.csv`; a.click();
       URL.revokeObjectURL(url);
     }
 
@@ -1281,7 +1300,7 @@
     function saveStockTake() {
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
-      const date = new Date().toISOString().split('T')[0];
+      const dateStr = new Date().toISOString().split('T')[0];
       let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
       let adjustedCount = 0;
 
@@ -1297,7 +1316,7 @@
             if (loc === 'warehouse') it.whCartons = physicalVal;
             else it.shopCartons = physicalVal;
 
-            logMovement('STOCK_TAKE_ADJUST', 'AUDIT-COUNT', date, it.name, `${diff > 0 ? '+' : ''}${diff} Cartons`, `${loc.toUpperCase()} Audit Variance`);
+            logMovement('STOCK_TAKE_ADJUST', 'AUDIT-COUNT', dateStr, it.name, `${diff > 0 ? '+' : ''}${diff} Cartons`, `${loc.toUpperCase()} Audit Variance`);
             saveSingleItem(it);
           }
         }
@@ -1310,7 +1329,7 @@
     function exportStockTakeForm() {
       const loc = document.getElementById('stocktake-location').value;
       const supplier = document.getElementById('stocktake-supplier').value;
-      const date = new Date().toISOString().split('T')[0];
+      const todayStr = getTodayDDMMYYYY();
       let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
 
       const headers = ['SKU', 'Item Name', 'Category', 'Location', 'System Cartons', 'Physical Cartons Count'];
@@ -1318,7 +1337,7 @@
       const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `StockTake_${loc}_${date}.csv`; a.click();
+      const a = document.createElement('a'); a.href = url; a.download = `StockTake_${loc}_${todayStr.replace(/\//g,'-')}.csv`; a.click();
       URL.revokeObjectURL(url);
     }
 
@@ -1537,7 +1556,15 @@
 
       auditLogs.forEach(log => {
         if (log.itemName === itemName && (log.action === 'SUPPLY_CLIENT' || log.action === 'SOLD_TO_SHOP')) {
-          const logDate = new Date(log.date).getTime();
+          let logDate = new Date(log.date).getTime();
+          // Handle DD/MM/YYYY parsing for calculation
+          if (isNaN(logDate) && typeof log.date === 'string') {
+            const parts = log.date.split('/');
+            if (parts.length === 3) {
+              logDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+            }
+          }
+
           if (!isNaN(logDate) && logDate >= thirtyDaysAgo) {
             let parts = (log.qty || '').split(' ');
             let val = parseInt(parts[0]) || 0;
@@ -1622,8 +1649,8 @@
     function exportOrder() {
       const supplier = document.getElementById('order-supplier').value;
       if (!supplier) { alert('Select supplier.'); return; }
-      const date = new Date().toISOString().split('T')[0];
-      const orderId = 'PO-' + date.replace(/-/g,'') + '-' + Math.floor(Math.random()*1000);
+      const todayStr = getTodayDDMMYYYY();
+      const orderId = 'PO-' + todayStr.replace(/\//g,'') + '-' + Math.floor(Math.random()*1000);
       const rows = [];
       let total = 0;
 
@@ -1644,7 +1671,7 @@
       if (!rows.length) { alert('No items checked with quantity > 0.'); return; }
 
       const csvLines = [
-        `"Purchase Order","${supplier}","${date}","${orderId}"`,
+        `"Purchase Order","${supplier}","${todayStr}","${orderId}"`,
         '',
         '"Item","Model","SKU","Cartons Ordered","Units Per Carton","Carton Est. Cost","Total Line KSh"',
         ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')),
