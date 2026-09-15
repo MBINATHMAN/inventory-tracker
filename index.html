@@ -251,6 +251,7 @@
         <input type="checkbox" id="filter-low-stock" onchange="render()"> ⚠️ Low Stock Only
       </label>
       <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openCategoryManagerModal()">🏷️ Manage Categories</button>
+      <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" onclick="openSupplierManagerModal()">🏭 Manage Suppliers</button>
       <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
       <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
@@ -290,6 +291,20 @@
         <div class="order-list" id="category-manager-list" style="max-height: 350px;"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" onclick="closeCategoryManagerModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Supplier Manager Modal -->
+    <div class="modal-overlay" id="supplier-modal">
+      <div class="modal" style="max-width: 600px;">
+        <h2>🏭 Manage Suppliers</h2>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
+          Rename or delete suppliers. Deleting a supplier unassigns them from any tagged products.
+        </p>
+        <div class="order-list" id="supplier-manager-list" style="max-height: 350px;"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeSupplierManagerModal()">Close</button>
         </div>
       </div>
     </div>
@@ -735,6 +750,9 @@
       if (document.getElementById('category-modal').classList.contains('open')) {
         renderCategoryManager();
       }
+      if (document.getElementById('supplier-modal').classList.contains('open')) {
+        renderSupplierManager();
+      }
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
@@ -822,6 +840,75 @@
 
       alert(`Category "${oldCat}" removed! Reassigned ${updatedCount} product(s) to "General".`);
       renderCategoryManager();
+    }
+
+    function openSupplierManagerModal() {
+      document.getElementById('supplier-modal').classList.add('open');
+      renderSupplierManager();
+    }
+
+    function closeSupplierManagerModal() {
+      document.getElementById('supplier-modal').classList.remove('open');
+    }
+
+    function renderSupplierManager() {
+      const list = document.getElementById('supplier-manager-list');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+
+      if (!suppliers.length) {
+        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No suppliers found.</p>';
+        return;
+      }
+
+      list.innerHTML = suppliers.map(sup => {
+        const count = items.filter(i => i.supplier === sup).length;
+        return `
+          <div class="order-item" style="padding:10px 0;">
+            <div class="order-item-info">
+              <div class="order-item-name">🏭 ${escapeHtml(sup)}</div>
+              <div class="order-item-meta">${count} product(s) associated</div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-sm" onclick="renameSupplier('${escapeHtml(sup)}')">✏️ Rename</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteSupplier('${escapeHtml(sup)}')">🗑️ Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renameSupplier(oldSup) {
+      const newSup = prompt(`Enter new name for supplier "${oldSup}":`, oldSup);
+      if (!newSup || newSup.trim() === '' || newSup.trim() === oldSup) return;
+      const formatted = newSup.trim();
+
+      let updatedCount = 0;
+      items.forEach(it => {
+        if (it.supplier === oldSup) {
+          it.supplier = formatted;
+          saveSingleItem(it);
+          updatedCount++;
+        }
+      });
+
+      alert(`Successfully renamed supplier to "${formatted}" across ${updatedCount} product(s)!`);
+      renderSupplierManager();
+    }
+
+    function deleteSupplier(oldSup) {
+      if (!confirm(`Are you sure you want to delete the supplier "${oldSup}"?\n\nThis will remove this supplier from all associated products.`)) return;
+
+      let updatedCount = 0;
+      items.forEach(it => {
+        if (it.supplier === oldSup) {
+          it.supplier = '';
+          saveSingleItem(it);
+          updatedCount++;
+        }
+      });
+
+      alert(`Supplier "${oldSup}" deleted and unassigned from ${updatedCount} product(s)!`);
+      renderSupplierManager();
     }
 
     function logMovement(action, refNo, dateStr, itemName, qty, route) {
@@ -1771,6 +1858,7 @@
 
     document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
     document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
+    document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
     document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
     document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
     document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
