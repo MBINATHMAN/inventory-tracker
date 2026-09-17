@@ -339,12 +339,12 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>Qty per carton</label>
+              <label>Qty per carton (Packaging count)</label>
               <input type="number" id="f-qtyPerCarton" min="1" value="1">
             </div>
             <div class="form-group">
               <label>Unit Label</label>
-              <input type="text" id="f-unit" placeholder="pcs, kg, box..." required value="pcs">
+              <input type="text" id="f-unit" placeholder="pcs, set, box..." required value="pcs">
             </div>
           </div>
 
@@ -415,13 +415,21 @@
 
         <div class="form-row">
           <div class="form-group">
+            <label style="font-weight:600;">Receive Unit Mode</label>
+            <select id="rec-unit-mode" onchange="renderBulkReceiveItems()">
+              <option value="cartons">Cartons (Full Boxes)</option>
+              <option value="pcs">Individual Pieces / Loose Units</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label>Invoice / Waybill No.</label>
             <input type="text" id="rec-invoice-no" placeholder="e.g. INV-98214">
           </div>
-          <div class="form-group">
-            <label>Delivery Date</label>
-            <input type="date" id="rec-delivery-date">
-          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Delivery Date</label>
+          <input type="date" id="rec-delivery-date">
         </div>
 
         <div class="form-group" style="margin-top: 4px;">
@@ -954,8 +962,8 @@
               sku: row[2] || ('SKU-' + i),
               category: row[3] || 'General',
               qtyPerCarton: parseInt(row[4]) || 1,
-              whCartons: parseInt(row[5]) || 0,
-              shopCartons: parseInt(row[6]) || 0,
+              whCartons: parseFloat(row[5]) || 0,
+              shopCartons: parseFloat(row[6]) || 0,
               unit: row[7] || 'pcs',
               cost: parseFloat(row[8]) || 0,
               price: parseFloat(row[9]) || 0,
@@ -1027,6 +1035,7 @@
       document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
       document.getElementById('rec-invoice-no').value = '';
       document.getElementById('rec-search').value = '';
+      document.getElementById('rec-unit-mode').value = 'cartons';
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -1039,7 +1048,7 @@
       const inputs = document.querySelectorAll('#bulk-receive-items input.order-qty');
       inputs.forEach(input => {
         const id = input.id.replace('rec-', '');
-        receiveQtyMap[id] = parseInt(input.value) || 0;
+        receiveQtyMap[id] = parseFloat(input.value) || 0;
       });
     }
 
@@ -1049,6 +1058,7 @@
 
       const supplier = document.getElementById('receive-supplier-select').value;
       const query = (document.getElementById('rec-search').value || '').toLowerCase().trim();
+      const unitMode = document.getElementById('rec-unit-mode').value;
       const container = document.getElementById('bulk-receive-items');
       
       if (!supplier) { 
@@ -1095,15 +1105,16 @@
 
         grouped[cat].forEach(it => {
           const currentTypedVal = receiveQtyMap[it.id] || 0;
+          const labelText = unitMode === 'cartons' ? '+ Cartons:' : `+ ${escapeHtml(it.unit || 'Pcs')}:`;
           html += `
             <div class="order-item">
               <div class="order-item-info">
                 <div class="order-item-name">${escapeHtml(it.name)}</div>
-                <div class="order-item-meta">${it.model ? escapeHtml(it.model) + ' · ' : ''}SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns</div>
+                <div class="order-item-meta">${it.model ? escapeHtml(it.model) + ' · ' : ''}SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns (${it.qtyPerCarton} ${escapeHtml(it.unit)}/ctn)</div>
               </div>
               <div style="display:flex; align-items:center; gap:6px;">
-                <span style="font-size:12px; color:var(--text-tertiary);">+ Cartons:</span>
-                <input type="number" class="order-qty" id="rec-${it.id}" value="${currentTypedVal}" min="0" oninput="receiveQtyMap[${it.id}] = parseInt(this.value) || 0">
+                <span style="font-size:12px; color:var(--text-tertiary);">${labelText}</span>
+                <input type="number" class="order-qty" id="rec-${it.id}" value="${currentTypedVal}" min="0" step="any" oninput="receiveQtyMap[${it.id}] = parseFloat(this.value) || 0">
               </div>
             </div>
           `;
@@ -1122,6 +1133,7 @@
       saveCurrentReceiveInputsToMap();
       const supplier = document.getElementById('receive-supplier-select').value;
       const dest = document.getElementById('rec-destination').value;
+      const unitMode = document.getElementById('rec-unit-mode').value;
       const invoiceNo = document.getElementById('rec-invoice-no').value.trim() || 'N/A';
       const deliveryDate = document.getElementById('rec-delivery-date').value || new Date().toISOString().split('T')[0];
 
@@ -1133,12 +1145,14 @@
         const addVal = receiveQtyMap[it.id] || 0;
         if (addVal > 0) {
           count++;
+          let cartonsToAdd = (unitMode === 'cartons') ? addVal : (addVal / (it.qtyPerCarton || 1));
+          
           if (dest === 'warehouse') {
-            it.whCartons += addVal;
-            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Warehouse`);
+            it.whCartons = Math.round((it.whCartons + cartonsToAdd) * 1000) / 1000;
+            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} ${unitMode === 'cartons' ? 'Cartons' : it.unit}`, `Supplier ➔ Warehouse`);
           } else {
-            it.shopCartons += addVal;
-            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} Cartons`, `Supplier ➔ Shop Store`);
+            it.shopCartons = Math.round((it.shopCartons + cartonsToAdd) * 1000) / 1000;
+            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} ${unitMode === 'cartons' ? 'Cartons' : it.unit}`, `Supplier ➔ Shop Store`);
           }
           saveSingleItem(it);
         }
@@ -1169,13 +1183,13 @@
       if (route === 'wh_to_shop') {
         document.getElementById('transfer-info').innerHTML = `
           <strong>${escapeHtml(item.name)}</strong><br>
-          Warehouse Stock Available: <strong>${item.whCartons} Cartons</strong> (${item.whCartons * item.qtyPerCarton} ${escapeHtml(item.unit)})<br>
+          Warehouse Stock Available: <strong>${item.whCartons} Cartons</strong> (${Math.round(item.whCartons * item.qtyPerCarton)} ${escapeHtml(item.unit)})<br>
           Current Shop Stock: <strong>${item.shopCartons} Cartons</strong>
         `;
       } else {
         document.getElementById('transfer-info').innerHTML = `
           <strong>${escapeHtml(item.name)}</strong><br>
-          Shop Stock Available: <strong>${item.shopCartons} Cartons</strong> (${item.shopCartons * item.qtyPerCarton} ${escapeHtml(item.unit)})<br>
+          Shop Stock Available: <strong>${item.shopCartons} Cartons</strong> (${Math.round(item.shopCartons * item.qtyPerCarton)} ${escapeHtml(item.unit)})<br>
           Current Warehouse Stock: <strong>${item.whCartons} Cartons</strong>
         `;
       }
@@ -1194,7 +1208,7 @@
     function processTransfer(e) {
       e.preventDefault();
       const id = parseInt(document.getElementById('transfer-id').value);
-      const val = parseInt(document.getElementById('transfer-input-val').value) || 0;
+      const val = parseFloat(document.getElementById('transfer-input-val').value) || 0;
       const route = document.getElementById('transfer-route').value;
       const refNo = document.getElementById('transfer-delivery-no').value.trim() || 'N/A';
       const date = document.getElementById('transfer-date').value;
@@ -1203,26 +1217,26 @@
       const item = items.find(i => i.id === id);
       if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
 
-      let cartonsToMove = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+      let cartonsToMove = (mode === 'cartons') ? val : (val / item.qtyPerCarton);
 
       if (route === 'wh_to_shop') {
         if (cartonsToMove > item.whCartons) {
           alert(`Insufficient warehouse stock! Max available: ${item.whCartons} ctns`);
           return;
         }
-        item.whCartons -= cartonsToMove;
-        item.shopCartons += cartonsToMove;
-        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode}`, 'Warehouse ➔ Shop Store');
-        alert(`Transferred ${val} ${mode} from Warehouse to Shop Store!`);
+        item.whCartons = Math.round((item.whCartons - cartonsToMove) * 1000) / 1000;
+        item.shopCartons = Math.round((item.shopCartons + cartonsToMove) * 1000) / 1000;
+        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, 'Warehouse ➔ Shop Store');
+        alert(`Transferred ${val} ${mode === 'cartons' ? 'Cartons' : item.unit} from Warehouse to Shop Store!`);
       } else {
         if (cartonsToMove > item.shopCartons) {
           alert(`Insufficient shop stock! Max available: ${item.shopCartons} ctns`);
           return;
         }
-        item.shopCartons -= cartonsToMove;
-        item.whCartons += cartonsToMove;
-        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode}`, 'Shop Store ➔ Warehouse');
-        alert(`Transferred ${val} ${mode} from Shop Store back to Warehouse!`);
+        item.shopCartons = Math.round((item.shopCartons - cartonsToMove) * 1000) / 1000;
+        item.whCartons = Math.round((item.whCartons + cartonsToMove) * 1000) / 1000;
+        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, 'Shop Store ➔ Warehouse');
+        alert(`Transferred ${val} ${mode === 'cartons' ? 'Cartons' : item.unit} from Shop Store back to Warehouse!`);
       }
 
       saveSingleItem(item); closeTransferModal(); render();
@@ -1266,7 +1280,7 @@
     function processDispatch(e) {
       e.preventDefault();
       const id = parseInt(document.getElementById('dispatch-id').value);
-      const val = parseInt(document.getElementById('dispatch-input-val').value) || 0;
+      const val = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
       const src = document.getElementById('dispatch-source').value;
       const delNo = document.getElementById('dispatch-delivery-no').value.trim() || 'N/A';
       const client = document.getElementById('dispatch-client').value.trim() || 'Client';
@@ -1276,22 +1290,22 @@
       const item = items.find(i => i.id === id);
       if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
 
-      let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+      let cartonsToDeduct = (mode === 'cartons') ? val : (val / item.qtyPerCarton);
 
       if (src === 'warehouse') {
         if (cartonsToDeduct > item.whCartons) { alert(`Insufficient warehouse stock! Max: ${item.whCartons} ctns`); return; }
-        item.whCartons -= cartonsToDeduct;
-        logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Warehouse ➔ Client (${client})`);
+        item.whCartons = Math.round((item.whCartons - cartonsToDeduct) * 1000) / 1000;
+        logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, `Warehouse ➔ Client (${client})`);
       } else {
         if (cartonsToDeduct > item.shopCartons) { alert(`Insufficient shop stock! Max: ${item.shopCartons} ctns`); return; }
-        item.shopCartons -= cartonsToDeduct;
-        logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode}`, `Shop ➔ Client (${client})`);
+        item.shopCartons = Math.round((item.shopCartons - cartonsToDeduct) * 1000) / 1000;
+        logMovement('SUPPLY_CLIENT', delNo, date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, `Shop ➔ Client (${client})`);
       }
 
       saveClientIfNew(client);
 
       saveSingleItem(item); closeDispatchModal(); render();
-      alert(`Successfully supplied ${val} ${mode} to ${client}!`);
+      alert(`Successfully supplied ${val} ${mode === 'cartons' ? 'Cartons' : item.unit} to ${client}!`);
     }
 
     function openLossModal(id) {
@@ -1321,7 +1335,7 @@
     function processLoss(e) {
       e.preventDefault();
       const id = parseInt(document.getElementById('loss-id').value);
-      const val = parseInt(document.getElementById('loss-input-val').value) || 0;
+      const val = parseFloat(document.getElementById('loss-input-val').value) || 0;
       const src = document.getElementById('loss-source').value;
       const reason = document.getElementById('loss-reason').value;
       const date = document.getElementById('loss-date').value;
@@ -1330,20 +1344,20 @@
       const item = items.find(i => i.id === id);
       if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
 
-      let cartonsToDeduct = (mode === 'cartons') ? val : Math.ceil(val / item.qtyPerCarton);
+      let cartonsToDeduct = (mode === 'cartons') ? val : (val / item.qtyPerCarton);
 
       if (src === 'warehouse') {
         if (cartonsToDeduct > item.whCartons) { alert(`Insufficient warehouse stock! Max: ${item.whCartons} ctns`); return; }
-        item.whCartons -= cartonsToDeduct;
-        logMovement('DAMAGE_LOSS', 'LOSS-NOTE', date, item.name, `${val} ${mode}`, `Warehouse ➔ Loss (${reason})`);
+        item.whCartons = Math.round((item.whCartons - cartonsToDeduct) * 1000) / 1000;
+        logMovement('DAMAGE_LOSS', 'LOSS-NOTE', date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, `Warehouse ➔ Loss (${reason})`);
       } else {
         if (cartonsToDeduct > item.shopCartons) { alert(`Insufficient shop stock! Max: ${item.shopCartons} ctns`); return; }
-        item.shopCartons -= cartonsToDeduct;
-        logMovement('DAMAGE_LOSS', 'LOSS-NOTE', date, item.name, `${val} ${mode}`, `Shop ➔ Loss (${reason})`);
+        item.shopCartons = Math.round((item.shopCartons - cartonsToDeduct) * 1000) / 1000;
+        logMovement('DAMAGE_LOSS', 'LOSS-NOTE', date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, `Shop ➔ Loss (${reason})`);
       }
 
       saveSingleItem(item); closeLossModal(); render();
-      alert(`Logged loss of ${val} ${mode} due to: ${reason}`);
+      alert(`Logged loss of ${val} ${mode === 'cartons' ? 'Cartons' : item.unit} due to: ${reason}`);
     }
 
     function openAuditLogModal() {
@@ -1439,7 +1453,7 @@
               <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · Expected: ${currentCartons} Cartons</div>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
-              <input type="number" class="order-qty" id="st-${it.id}" value="${currentCartons}" min="0" oninput="calcVariance(${it.id}, ${currentCartons})">
+              <input type="number" class="order-qty" id="st-${it.id}" value="${currentCartons}" min="0" step="any" oninput="calcVariance(${it.id}, ${currentCartons})">
               <span style="font-size:12px;">Cartons</span>
               <span id="st-var-${it.id}" style="font-size:11px; font-weight:600; min-width:60px; text-align:right; color:var(--text-tertiary);">Var: 0</span>
             </div>
@@ -1452,8 +1466,8 @@
       const input = document.getElementById(`st-${id}`);
       const varSpan = document.getElementById(`st-var-${id}`);
       if (!input || !varSpan) return;
-      const physical = parseInt(input.value) || 0;
-      const variance = physical - expected;
+      const physical = parseFloat(input.value) || 0;
+      const variance = Math.round((physical - expected) * 1000) / 1000;
       
       if (variance === 0) {
         varSpan.textContent = 'Var: 0';
@@ -1479,9 +1493,9 @@
       targetItems.forEach(it => {
         const input = document.getElementById(`st-${it.id}`);
         if (input) {
-          const physicalVal = Math.max(0, parseInt(input.value) || 0);
+          const physicalVal = Math.max(0, parseFloat(input.value) || 0);
           const systemVal = loc === 'warehouse' ? it.whCartons : it.shopCartons;
-          const diff = physicalVal - systemVal;
+          const diff = Math.round((physicalVal - systemVal) * 1000) / 1000;
 
           if (diff !== 0) {
             adjustedCount++;
@@ -1581,11 +1595,11 @@
               <td><span class="chip" style="background:rgba(107,114,128,0.15);">${escapeHtml(it.category)}</span></td>
               <td>
                 <strong>${it.whCartons} Cartons</strong>
-                <div class="carton-meta">${it.whCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
+                <div class="carton-meta">${Math.round(it.whCartons * it.qtyPerCarton)} ${escapeHtml(it.unit)}</div>
               </td>
               <td>
                 <strong>${it.shopCartons} Cartons</strong>
-                <div class="carton-meta">${it.shopCartons * it.qtyPerCarton} ${escapeHtml(it.unit)}</div>
+                <div class="carton-meta">${Math.round(it.shopCartons * it.qtyPerCarton)} ${escapeHtml(it.unit)}</div>
               </td>
               <td class="price" style="color:var(--text-secondary);">KSh ${costVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
               <td class="price"><strong>KSh ${priceVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td>
@@ -1617,8 +1631,8 @@
       document.getElementById('stat-total').textContent = totalItems;
       document.getElementById('stat-cost').textContent = 'KSh ' + totalCostVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
       document.getElementById('stat-value').textContent = 'KSh ' + totalRetailVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
-      document.getElementById('stat-wh').textContent = totalWhCartons + ' ctns';
-      document.getElementById('stat-shop').textContent = totalShopCartons + ' ctns';
+      document.getElementById('stat-wh').textContent = totalWhCartons.toFixed(1) + ' ctns';
+      document.getElementById('stat-shop').textContent = totalShopCartons.toFixed(1) + ' ctns';
     }
 
     function sortBy(col) {
@@ -1667,7 +1681,7 @@
       e.preventDefault();
       const id = document.getElementById('edit-id').value;
       const initialLoc = document.getElementById('f-initialLoc').value;
-      const initialCartons = parseInt(document.getElementById('f-initialCartons').value) || 0;
+      const initialCartons = parseFloat(document.getElementById('f-initialCartons').value) || 0;
 
       const data = {
         name: document.getElementById('f-name').value.trim(),
@@ -1738,13 +1752,13 @@
 
           if (!isNaN(logDate) && logDate >= thirtyDaysAgo) {
             let parts = (log.qty || '').split(' ');
-            let val = parseInt(parts[0]) || 0;
+            let val = parseFloat(parts[0]) || 0;
             let unit = parts[1] || 'cartons';
 
             if (unit.toLowerCase().includes('carton')) {
               totalCartonsOut += val;
             } else {
-              totalCartonsOut += Math.ceil(val / (qtyPerCarton || 1));
+              totalCartonsOut += (val / (qtyPerCarton || 1));
             }
           }
         }
@@ -1790,7 +1804,7 @@
           <div class="order-item-info">
             <div class="order-item-name">${escapeHtml(it.name)}</div>
             <div class="order-item-meta">
-              SKU: ${escapeHtml(it.sku)} · On Hand: ${totalStockCartons} ctns · 30-Day Sales: ${moved30DaysCartons} ctns 
+              SKU: ${escapeHtml(it.sku)} · On Hand: ${totalStockCartons.toFixed(1)} ctns · 30-Day Sales: ${moved30DaysCartons.toFixed(1)} ctns 
               <br><span style="color:var(--accent-orange);">Target: ${targetStockCartons} ctns (${bufferDays}d buffer)</span>
             </div>
           </div>
@@ -1810,7 +1824,7 @@
         const chk = document.getElementById('chk-' + it.id);
         const qty = document.getElementById('qty-' + it.id);
         if (chk && chk.checked && qty) {
-          const cartonsToOrder = parseInt(qty.value) || 0;
+          const cartonsToOrder = parseFloat(qty.value) || 0;
           total += ((it.cost || it.price) * it.qtyPerCarton) * cartonsToOrder;
         }
       });
@@ -1829,7 +1843,7 @@
         const chk = document.getElementById('chk-' + it.id);
         const qty = document.getElementById('qty-' + it.id);
         if (chk && chk.checked && qty) {
-          const cartons = parseInt(qty.value) || 0;
+          const cartons = parseFloat(qty.value) || 0;
           if (cartons > 0) {
             const unitCostVal = it.cost || it.price;
             const lineTotal = (unitCostVal * it.qtyPerCarton) * cartons;
