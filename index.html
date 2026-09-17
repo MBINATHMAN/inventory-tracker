@@ -415,21 +415,13 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label style="font-weight:600;">Receive Unit Mode</label>
-            <select id="rec-unit-mode" onchange="renderBulkReceiveItems()">
-              <option value="cartons">Cartons (Full Boxes)</option>
-              <option value="pcs">Individual Pieces / Loose Units</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label>Invoice / Waybill No.</label>
             <input type="text" id="rec-invoice-no" placeholder="e.g. INV-98214">
           </div>
-        </div>
-
-        <div class="form-group">
-          <label>Delivery Date</label>
-          <input type="date" id="rec-delivery-date">
+          <div class="form-group">
+            <label>Delivery Date</label>
+            <input type="date" id="rec-delivery-date">
+          </div>
         </div>
 
         <div class="form-group" style="margin-top: 4px;">
@@ -719,6 +711,7 @@
     let sortDir = 'asc';
     let skuEdited = false;
     let receiveQtyMap = {};
+    let receiveUnitMap = {};
 
     function formatDateToDDMMYYYY(dateStr) {
       if (!dateStr) return '';
@@ -1031,11 +1024,11 @@
 
     function openBulkReceiveModal() {
       receiveQtyMap = {};
+      receiveUnitMap = {};
       document.getElementById('bulk-receive-modal').classList.add('open');
       document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
       document.getElementById('rec-invoice-no').value = '';
       document.getElementById('rec-search').value = '';
-      document.getElementById('rec-unit-mode').value = 'cartons';
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -1050,15 +1043,23 @@
         const id = input.id.replace('rec-', '');
         receiveQtyMap[id] = parseFloat(input.value) || 0;
       });
+      const selects = document.querySelectorAll('#bulk-receive-items select.rec-unit-select');
+      selects.forEach(select => {
+        const id = select.id.replace('rec-unit-', '');
+        receiveUnitMap[id] = select.value;
+      });
     }
 
     function renderBulkReceiveItems(resetMap = false) {
-      if (resetMap) receiveQtyMap = {};
-      else saveCurrentReceiveInputsToMap();
+      if (resetMap) {
+        receiveQtyMap = {};
+        receiveUnitMap = {};
+      } else {
+        saveCurrentReceiveInputsToMap();
+      }
 
       const supplier = document.getElementById('receive-supplier-select').value;
       const query = (document.getElementById('rec-search').value || '').toLowerCase().trim();
-      const unitMode = document.getElementById('rec-unit-mode').value;
       const container = document.getElementById('bulk-receive-items');
       
       if (!supplier) { 
@@ -1105,16 +1106,21 @@
 
         grouped[cat].forEach(it => {
           const currentTypedVal = receiveQtyMap[it.id] || 0;
-          const labelText = unitMode === 'cartons' ? '+ Cartons:' : `+ ${escapeHtml(it.unit || 'Pcs')}:`;
+          const currentUnitMode = receiveUnitMap[it.id] || 'cartons';
+          const unitLabelStr = escapeHtml(it.unit || 'Pcs');
+
           html += `
             <div class="order-item">
               <div class="order-item-info">
                 <div class="order-item-name">${escapeHtml(it.name)}</div>
-                <div class="order-item-meta">${it.model ? escapeHtml(it.model) + ' · ' : ''}SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns (${it.qtyPerCarton} ${escapeHtml(it.unit)}/ctn)</div>
+                <div class="order-item-meta">${it.model ? escapeHtml(it.model) + ' · ' : ''}SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns (${it.qtyPerCarton} ${unitLabelStr}/ctn)</div>
               </div>
               <div style="display:flex; align-items:center; gap:6px;">
-                <span style="font-size:12px; color:var(--text-tertiary);">${labelText}</span>
                 <input type="number" class="order-qty" id="rec-${it.id}" value="${currentTypedVal}" min="0" step="any" oninput="receiveQtyMap[${it.id}] = parseFloat(this.value) || 0">
+                <select class="rec-unit-select" id="rec-unit-${it.id}" style="padding:5px 8px; font-size:12px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text);" onchange="receiveUnitMap[${it.id}] = this.value">
+                  <option value="cartons" ${currentUnitMode === 'cartons' ? 'selected' : ''}>Cartons</option>
+                  <option value="pcs" ${currentUnitMode === 'pcs' ? 'selected' : ''}>Loose ${unitLabelStr}</option>
+                </select>
               </div>
             </div>
           `;
@@ -1133,7 +1139,6 @@
       saveCurrentReceiveInputsToMap();
       const supplier = document.getElementById('receive-supplier-select').value;
       const dest = document.getElementById('rec-destination').value;
-      const unitMode = document.getElementById('rec-unit-mode').value;
       const invoiceNo = document.getElementById('rec-invoice-no').value.trim() || 'N/A';
       const deliveryDate = document.getElementById('rec-delivery-date').value || new Date().toISOString().split('T')[0];
 
@@ -1143,16 +1148,19 @@
 
       supplierItems.forEach(it => {
         const addVal = receiveQtyMap[it.id] || 0;
+        const mode = receiveUnitMap[it.id] || 'cartons';
+
         if (addVal > 0) {
           count++;
-          let cartonsToAdd = (unitMode === 'cartons') ? addVal : (addVal / (it.qtyPerCarton || 1));
-          
+          let cartonsToAdd = (mode === 'cartons') ? addVal : (addVal / (it.qtyPerCarton || 1));
+          const unitText = (mode === 'cartons') ? 'Cartons' : (it.unit || 'Pcs');
+
           if (dest === 'warehouse') {
             it.whCartons = Math.round((it.whCartons + cartonsToAdd) * 1000) / 1000;
-            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} ${unitMode === 'cartons' ? 'Cartons' : it.unit}`, `Supplier ➔ Warehouse`);
+            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} ${unitText}`, `Supplier ➔ Warehouse`);
           } else {
             it.shopCartons = Math.round((it.shopCartons + cartonsToAdd) * 1000) / 1000;
-            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} ${unitMode === 'cartons' ? 'Cartons' : it.unit}`, `Supplier ➔ Shop Store`);
+            logMovement('RECEIVE', invoiceNo, deliveryDate, it.name, `${addVal} ${unitText}`, `Supplier ➔ Shop Store`);
           }
           saveSingleItem(it);
         }
