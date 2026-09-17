@@ -704,9 +704,21 @@
 
     const db = firebase.database();
 
-    let items = [];
-    let auditLogs = [];
-    let clients = [];
+    // Helper to safely pull initial cached data from localStorage
+    function getStoredJSON(key, fallback) {
+      try {
+        const val = localStorage.getItem(key);
+        return val ? JSON.parse(val) : fallback;
+      } catch(e) {
+        return fallback;
+      }
+    }
+
+    // Initialize arrays directly from local storage for instant offline boot
+    let items = getStoredJSON('local_items', []);
+    let auditLogs = getStoredJSON('local_auditLogs', []);
+    let clients = getStoredJSON('local_clients', []);
+
     let sortCol = 'name';
     let sortDir = 'asc';
     let skuEdited = false;
@@ -738,13 +750,23 @@
         label.textContent = 'Cloud Sync: Connected ⚡';
       } else {
         dot.className = 'badge-dot offline';
-        label.textContent = 'Offline Mode (Local Cache Saved) 📁';
+        label.textContent = 'Offline Mode (Local Storage Active) 📁';
       }
     });
 
+    // Initial render on boot from localStorage
+    window.addEventListener('DOMContentLoaded', () => {
+      updateCatList();
+      updateSupplierList();
+      updateClientList();
+      render();
+    });
+
+    // Realtime Firebase listeners that sync directly to local PC storage
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
+      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
       updateCatList();
       updateSupplierList();
       render();
@@ -759,6 +781,7 @@
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).sort((a,b) => b.id - a.id) : [];
+      try { localStorage.setItem('local_auditLogs', JSON.stringify(auditLogs)); } catch(e){}
       if (document.getElementById('audit-modal').classList.contains('open')) {
         renderAuditLogs();
       }
@@ -767,11 +790,13 @@
     db.ref('clients').on('value', (snapshot) => {
       const data = snapshot.val();
       clients = data ? Object.values(data) : [];
+      try { localStorage.setItem('local_clients', JSON.stringify(clients)); } catch(e){}
       updateClientList();
     });
 
     function saveSingleItem(item) {
       db.ref('items/' + item.id).update(item);
+      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
     }
 
     function openCategoryManagerModal() {
@@ -925,6 +950,7 @@
       };
       auditLogs.unshift(newLog);
       db.ref('auditLogs/' + newLog.id).set(newLog);
+      try { localStorage.setItem('local_auditLogs', JSON.stringify(auditLogs)); } catch(e){}
     }
 
     function triggerCsvImport() {
@@ -1004,6 +1030,7 @@
         const newId = Date.now();
         const newClient = { id: newId, name: formatted };
         db.ref('clients/' + newId).set(newClient);
+        try { localStorage.setItem('local_clients', JSON.stringify(clients)); } catch(e){}
       }
     }
 
@@ -1730,6 +1757,7 @@
       if (confirm('Delete this item?')) {
         items = items.filter(i => i.id !== id);
         db.ref('items/' + id).remove();
+        try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
         updateCatList(); updateSupplierList(); render();
       }
     }
