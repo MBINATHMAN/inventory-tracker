@@ -583,7 +583,7 @@
 
     <!-- Movement Audit Log Modal -->
     <div class="modal-overlay" id="audit-modal">
-      <div class="modal" style="max-width: 880px;">
+      <div class="modal" style="max-width: 920px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
           <h2 style="margin:0;">📜 Stock Movement Audit Log</h2>
           <div style="display:flex; gap:8px; flex:1; max-width:520px;">
@@ -608,6 +608,7 @@
                 <th style="padding: 8px;">Item Name</th>
                 <th style="padding: 8px;">Qty</th>
                 <th style="padding: 8px;">Source / Destination / Notes</th>
+                <th style="padding: 8px; text-align:right;">Fix Action</th>
               </tr>
             </thead>
             <tbody id="audit-log-tbody"></tbody>
@@ -704,7 +705,6 @@
 
     const db = firebase.database();
 
-    // Helper to safely pull initial cached data from localStorage
     function getStoredJSON(key, fallback) {
       try {
         const val = localStorage.getItem(key);
@@ -714,7 +714,6 @@
       }
     }
 
-    // Initialize arrays directly from local storage for instant offline boot
     let items = getStoredJSON('local_items', []);
     let auditLogs = getStoredJSON('local_auditLogs', []);
     let clients = getStoredJSON('local_clients', []);
@@ -754,7 +753,6 @@
       }
     });
 
-    // Initial render on boot from localStorage
     window.addEventListener('DOMContentLoaded', () => {
       updateCatList();
       updateSupplierList();
@@ -762,7 +760,6 @@
       render();
     });
 
-    // Realtime Firebase listeners that sync directly to local PC storage
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
@@ -951,6 +948,59 @@
       auditLogs.unshift(newLog);
       db.ref('auditLogs/' + newLog.id).set(newLog);
       try { localStorage.setItem('local_auditLogs', JSON.stringify(auditLogs)); } catch(e){}
+    }
+
+    function revertMovement(logId) {
+      const log = auditLogs.find(l => l.id === logId);
+      if (!log) return;
+
+      if (!confirm(`Are you sure you want to revert this movement?\n\nItem: ${log.itemName}\nQty: ${log.qty}\nRoute: ${log.route}`)) {
+        return;
+      }
+
+      const item = items.find(i => i.name.toLowerCase() === log.itemName.toLowerCase());
+      if (!item) {
+        alert('Target item not found in active inventory list.');
+        return;
+      }
+
+      const parts = (log.qty || '').split(' ');
+      const val = parseFloat(parts[0]) || 0;
+      const unitStr = (parts[1] || '').toLowerCase();
+
+      let cartonsToAdjust = unitStr.includes('carton') ? val : (val / (item.qtyPerCarton || 1));
+
+      if (log.action === 'SUPPLY_CLIENT' || log.action === 'DAMAGE_LOSS') {
+        if (log.route.toLowerCase().includes('warehouse')) {
+          item.whCartons = Math.round((item.whCartons + cartonsToAdjust) * 1000) / 1000;
+        } else {
+          item.shopCartons = Math.round((item.shopCartons + cartonsToAdjust) * 1000) / 1000;
+        }
+      } else if (log.action === 'RECEIVE') {
+        if (log.route.toLowerCase().includes('warehouse')) {
+          item.whCartons = Math.max(0, Math.round((item.whCartons - cartonsToAdjust) * 1000) / 1000);
+        } else {
+          item.shopCartons = Math.max(0, Math.round((item.shopCartons - cartonsToAdjust) * 1000) / 1000);
+        }
+      } else if (log.action === 'TRANSFER') {
+        if (log.route.includes('Warehouse ➔ Shop Store')) {
+          item.whCartons = Math.round((item.whCartons + cartonsToAdjust) * 1000) / 1000;
+          item.shopCartons = Math.max(0, Math.round((item.shopCartons - cartonsToAdjust) * 1000) / 1000);
+        } else {
+          item.shopCartons = Math.round((item.shopCartons + cartonsToAdjust) * 1000) / 1000;
+          item.whCartons = Math.max(0, Math.round((item.whCartons - cartonsToAdjust) * 1000) / 1000);
+        }
+      }
+
+      log.reverted = true;
+      db.ref('auditLogs/' + log.id).update({ reverted: true });
+
+      saveSingleItem(item);
+      logMovement('REVERT_CANCEL', log.refNo, new Date().toISOString().split('T')[0], item.name, `+${log.qty}`, `Reverted Log #${log.id}`);
+
+      render();
+      renderAuditLogs();
+      alert(`Successfully reverted movement for ${item.name}! Stock balance restored.`);
     }
 
     function triggerCsvImport() {
@@ -1424,7 +1474,7 @@
       }
 
       if (!filteredLogs.length) { 
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found matching search / filter.</td></tr>'; 
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found matching search / filter.</td></tr>'; 
         return; 
       }
 
@@ -1435,18 +1485,22 @@
         if (l.action === 'SUPPLY_CLIENT') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
         if (l.action === 'TRANSFER') { badgeColor = 'var(--accent-purple)'; bg = 'rgba(124,58,237,0.15)'; }
         if (l.action === 'DAMAGE_LOSS') { badgeColor = 'var(--danger)'; bg = 'rgba(220,38,38,0.15)'; }
-        if (l.action === 'STOCK_TAKE_ADJUST') { badgeColor = 'var(--text-secondary)'; bg = 'rgba(107,114,128,0.15)'; }
+        if (l.action === 'STOCK_TAKE_ADJUST' || l.action.includes('REVERT')) { badgeColor = 'var(--text-secondary)'; bg = 'rgba(107,114,128,0.15)'; }
 
         const displayDate = formatDateToDDMMYYYY(l.date);
+        const isReverted = l.reverted || l.action.includes('REVERT');
 
         return `
-          <tr style="border-bottom:1px solid var(--border-divider);">
+          <tr style="border-bottom:1px solid var(--border-divider); ${isReverted ? 'opacity: 0.5; background: rgba(0,0,0,0.02);' : ''}">
             <td style="padding:8px; white-space:nowrap;">${displayDate}</td>
             <td style="padding:8px;"><span class="chip" style="font-size:10px; background:${bg}; color:${badgeColor};">${l.action}</span></td>
             <td style="padding:8px; font-weight:600; font-family:var(--font-mono);">${escapeHtml(l.refNo)}</td>
             <td style="padding:8px;">${escapeHtml(l.itemName)}</td>
             <td style="padding:8px; font-weight:600;">${l.qty}</td>
             <td style="padding:8px; color:var(--text-secondary);">${escapeHtml(l.route)}</td>
+            <td style="padding:8px; text-align:right;">
+              ${!isReverted ? `<button class="btn btn-sm btn-danger" style="font-size:11px; padding:2px 6px;" onclick="revertMovement(${l.id})">↺ Revert</button>` : '<span style="font-size:11px; color:var(--text-tertiary);">Reverted</span>'}
+            </td>
           </tr>
         `;
       }).join('');
