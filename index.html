@@ -217,6 +217,18 @@
       font-size: 12px;
       color: var(--text-secondary);
     }
+
+    /* Printable Price List Styles */
+    @media print {
+      body * { visibility: hidden; }
+      #pricelist-print-area, #pricelist-print-area * { visibility: visible; }
+      #pricelist-print-area {
+        position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 20px;
+      }
+      #pricelist-print-area table { width: 100%; border-collapse: collapse; font-size: 12pt; }
+      #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      #pricelist-print-area th { background-color: #f2f2f2; }
+    }
   </style>
 </head>
 <body>
@@ -263,6 +275,7 @@
       </label>
       <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openCategoryManagerModal()">🏷️ Manage Categories</button>
       <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" onclick="openSupplierManagerModal()">🏭 Manage Suppliers</button>
+      <button class="btn" style="border-color:var(--positive); color:var(--positive);" onclick="openPricelistModal()">🏷️ Supplier Price Lists</button>
       <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
       <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
@@ -289,6 +302,65 @@
       </table>
       <div class="empty-state" id="empty" style="display:none;">
         <p>No items found. Add your first product or click "Import CSV Data".</p>
+      </div>
+    </div>
+
+    <!-- Supplier Price List Generator Modal -->
+    <div class="modal-overlay" id="pricelist-modal">
+      <div class="modal" style="max-width: 850px;">
+        <h2>🏷️ Generate Supplier Price List</h2>
+        <div class="form-row" style="grid-template-columns: 2fr 1fr 1fr; gap: 8px;">
+          <div class="form-group">
+            <label>Select Supplier *</label>
+            <select id="pl-supplier" onchange="renderPriceList()"></select>
+          </div>
+          <div class="form-group">
+            <label>Filter Category</label>
+            <select id="pl-category" onchange="renderPriceList()">
+              <option value="">-- All Categories --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Prices to Show</label>
+            <select id="pl-type" onchange="renderPriceList()">
+              <option value="both">Cost & Selling Price</option>
+              <option value="cost">Unit Cost Only (Buying)</option>
+              <option value="price">Selling Price Only (Retail)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="pricelist-print-area">
+          <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--border); padding-bottom: 8px;">
+            <div>
+              <h3 id="pl-header-supplier" style="margin: 0; font-size: 18px;">Supplier Price Catalog</h3>
+              <span id="pl-header-meta" style="font-size: 12px; color: var(--text-tertiary);">Generated on: -</span>
+            </div>
+            <div style="text-align: right; font-size: 12px; color: var(--text-secondary);" id="pl-header-count">0 items</div>
+          </div>
+          <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;" id="pl-table-wrap">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <thead>
+                <tr style="background: var(--surface);">
+                  <th style="padding: 8px;">SKU</th>
+                  <th style="padding: 8px;">Item Name</th>
+                  <th style="padding: 8px;">Model</th>
+                  <th style="padding: 8px;">Category</th>
+                  <th style="padding: 8px;">Packaging</th>
+                  <th style="padding: 8px; text-align: right;" id="pl-th-cost">Unit Cost (KSh)</th>
+                  <th style="padding: 8px; text-align: right;" id="pl-th-price">Unit Price (KSh)</th>
+                </tr>
+              </thead>
+              <tbody id="pricelist-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button type="button" class="btn" onclick="exportPriceListCSV()">📄 Export CSV</button>
+          <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Print Price List</button>
+          <button type="button" class="btn" onclick="closePricelistModal()">Close</button>
+        </div>
       </div>
     </div>
 
@@ -837,6 +909,9 @@
       if (document.getElementById('supplier-modal').classList.contains('open')) {
         renderSupplierManager();
       }
+      if (document.getElementById('pricelist-modal').classList.contains('open')) {
+        renderPriceList();
+      }
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
@@ -883,6 +958,110 @@
       item[locKey] = Math.max(0, Math.round((current + cartonDelta) * 1000) / 1000);
       saveSingleItem(item);
       logMovement(action, refNo, dateStr, item.name, qtyDisplayStr, routeStr);
+    }
+
+    // Supplier Price List Logic
+    function openPricelistModal() {
+      document.getElementById('pricelist-modal').classList.add('open');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
+
+      document.getElementById('pl-supplier').innerHTML = '<option value="">-- Select Supplier --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      
+      document.getElementById('pl-category').innerHTML = '<option value="">-- All Categories --</option>' +
+        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+      renderPriceList();
+    }
+
+    function closePricelistModal() {
+      document.getElementById('pricelist-modal').classList.remove('open');
+    }
+
+    function renderPriceList() {
+      const supplier = document.getElementById('pl-supplier').value;
+      const category = document.getElementById('pl-category').value;
+      const type = document.getElementById('pl-type').value;
+      const tbody = document.getElementById('pricelist-tbody');
+
+      document.getElementById('pl-header-supplier').textContent = supplier ? `Price Catalog: ${supplier}` : 'Supplier Price Catalog';
+      document.getElementById('pl-header-meta').textContent = `Generated on: ${getTodayDDMMYYYY()}`;
+
+      document.getElementById('pl-th-cost').style.display = (type === 'price') ? 'none' : 'table-cell';
+      document.getElementById('pl-th-price').style.display = (type === 'cost') ? 'none' : 'table-cell';
+
+      if (!supplier) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">Please select a supplier to display items.</td></tr>';
+        document.getElementById('pl-header-count').textContent = '0 items';
+        return;
+      }
+
+      let filtered = items.filter(i => i.supplier === supplier);
+      if (category) {
+        filtered = filtered.filter(i => i.category === category);
+      }
+
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+      document.getElementById('pl-header-count').textContent = `${filtered.length} item(s)`;
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">No items found for this supplier/category.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(it => {
+        const costVal = parseFloat(it.cost) || 0;
+        const priceVal = parseFloat(it.price) || 0;
+        return `
+          <tr style="border-bottom: 1px solid var(--border-divider);">
+            <td style="padding: 8px; font-family: var(--font-mono);">${escapeHtml(it.sku)}</td>
+            <td style="padding: 8px; font-weight: 600;">${escapeHtml(it.name)}</td>
+            <td style="padding: 8px; color: var(--text-secondary);">${escapeHtml(it.model || 'N/A')}</td>
+            <td style="padding: 8px;">${escapeHtml(it.category || 'General')}</td>
+            <td style="padding: 8px; color: var(--text-tertiary);">${it.qtyPerCarton} ${escapeHtml(it.unit || 'pcs')}/ctn</td>
+            ${type !== 'price' ? `<td style="padding: 8px; text-align: right;">KSh ${costVal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>` : ''}
+            ${type !== 'cost' ? `<td style="padding: 8px; text-align: right; font-weight: 600;">KSh ${priceVal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function exportPriceListCSV() {
+      const supplier = document.getElementById('pl-supplier').value;
+      if (!supplier) { alert('Select a supplier first.'); return; }
+
+      const category = document.getElementById('pl-category').value;
+      const type = document.getElementById('pl-type').value;
+
+      let filtered = items.filter(i => i.supplier === supplier);
+      if (category) filtered = filtered.filter(i => i.category === category);
+
+      if (!filtered.length) { alert('No items to export.'); return; }
+
+      const headers = ['SKU', 'Item Name', 'Model', 'Category', 'Units Per Carton'];
+      if (type !== 'price') headers.push('Unit Cost KSh');
+      if (type !== 'cost') headers.push('Unit Price KSh');
+
+      const rows = filtered.map(i => {
+        const row = [i.sku, i.name, i.model||'', i.category||'General', `${i.qtyPerCarton} ${i.unit||'pcs'}`];
+        if (type !== 'price') row.push((parseFloat(i.cost)||0).toFixed(2));
+        if (type !== 'cost') row.push((parseFloat(i.price)||0).toFixed(2));
+        return row;
+      });
+
+      const csvLines = [
+        `"Supplier Price Catalog","${supplier}","${getTodayDDMMYYYY()}"`,
+        '',
+        headers.map(h => `"${h}"`).join(','),
+        ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','))
+      ];
+
+      const blob = new Blob([csvLines.join('\n')], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; 
+      a.download = `PriceList_${supplier.replace(/[^a-zA-Z0-9]/g,'_')}_${getTodayDDMMYYYY().replace(/\//g,'-')}.csv`; 
+      a.click(); URL.revokeObjectURL(url);
     }
 
     function openCategoryManagerModal() {
@@ -1878,7 +2057,7 @@
               <td>
                 <div class="item-name">
                   ${escapeHtml(it.name)}
-                  ${isLowStock ? `<span class="chip chip-danger" style="font-size:10px;">⚠️ LOW STOCK</span>` : ''}
+                  ${isLowStock ? `<span class="chip chip-danger" style="font-size:10px;">⚠️️ LOW STOCK</span>` : ''}
                 </div>
                 ${it.model ? `<div class="item-model">${escapeHtml(it.model)}</div>` : ''}
                 <div class="item-sku">${escapeHtml(it.sku)}</div>
@@ -2168,6 +2347,7 @@
     document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
     document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
     document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
+    document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
     document.getElementById('csv-preview-modal').addEventListener('click', e => { if (e.target === document.getElementById('csv-preview-modal')) closeCsvPreviewModal(); });
     document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
     document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
