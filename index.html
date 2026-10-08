@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventory Stock & Operations Tracker</title>
+  <title>Inventory Stock & Operations Tracker with Embedded AI</title>
   <style>
     :root {
       --bg: #ffffff;
@@ -218,7 +218,19 @@
       color: var(--text-secondary);
     }
 
-    /* Printable Price List Styles */
+    /* AI Component Custom Styles */
+    .ai-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(124, 58, 237, 0.15);
+      color: var(--accent-purple);
+      font-weight: 600;
+    }
+
     @media print {
       body * { visibility: hidden; }
       #pricelist-print-area, #pricelist-print-area * { visibility: visible; }
@@ -240,6 +252,7 @@
           <span class="badge-dot" id="sync-dot"></span>
           <span id="sync-label">Cloud Sync: Connecting...</span>
         </div>
+        <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openAiForecastModal()">🤖 AI Forecast</button>
         <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
         <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
       </div>
@@ -302,6 +315,34 @@
       </table>
       <div class="empty-state" id="empty" style="display:none;">
         <p>No items found. Add your first product or click "Import CSV Data".</p>
+      </div>
+    </div>
+
+    <!-- AI Demand Forecast & Stock Run-Out Modal -->
+    <div class="modal-overlay" id="ai-forecast-modal">
+      <div class="modal" style="max-width: 850px;">
+        <h2>🤖 AI Demand Forecast & Run-Out Engine</h2>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
+          Calculates daily consumption velocity using historical sales, dispatches, and shrinkage logs to forecast stock depletion dates.
+        </p>
+        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background: var(--surface);">
+                <th style="padding: 8px;">Item Name</th>
+                <th style="padding: 8px;">Total Stock</th>
+                <th style="padding: 8px;">30-Day Outflow</th>
+                <th style="padding: 8px;">Burn Rate / Day</th>
+                <th style="padding: 8px;">Run-Out Forecast</th>
+                <th style="padding: 8px;">AI Reorder Level</th>
+              </tr>
+            </thead>
+            <tbody id="ai-forecast-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button type="button" class="btn" onclick="closeAiForecastModal()">Close</button>
+        </div>
       </div>
     </div>
 
@@ -392,13 +433,16 @@
       </div>
     </div>
 
-    <!-- CSV Preview & Mapper Modal -->
+    <!-- CSV Preview & AI Mapper Modal -->
     <div class="modal-overlay" id="csv-preview-modal">
       <div class="modal" style="max-width: 800px;">
-        <h2>📥 CSV Import Mapping & Preview</h2>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
-          Match your CSV columns to the inventory fields. A quick preview of the first 3 rows is shown below.
-        </p>
+        <h2>📥 CSV Import Mapping & AI Auto-Detection</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <p style="font-size: 12px; color: var(--text-tertiary); margin:0;">
+            Verify or modify the auto-detected CSV column mapping before importing.
+          </p>
+          <span class="ai-badge">🤖 AI Auto-Mapped</span>
+        </div>
         
         <div class="form-row" style="grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
           <div class="form-group"><label>Item Name *</label><select id="csv-map-name"></select></div>
@@ -429,13 +473,16 @@
     <!-- Modal Single Item Add/Edit -->
     <div class="modal-overlay" id="modal">
       <div class="modal">
-        <h2 id="modal-title">Add single item</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2 id="modal-title" style="margin:0;">Add single item</h2>
+          <span class="ai-badge" id="ai-cat-badge" style="display:none;">🤖 AI Auto-Categorized</span>
+        </div>
         <form id="item-form" onsubmit="saveItem(event)">
           <input type="hidden" id="edit-id">
           <div class="form-row">
             <div class="form-group">
               <label>Item name</label>
-              <input type="text" id="f-name" required oninput="autoSKU()">
+              <input type="text" id="f-name" required oninput="handleNameInput()">
             </div>
             <div class="form-group">
               <label>Model</label>
@@ -860,6 +907,110 @@
     const AUDIT_PAGE_SIZE = 25;
     let parsedCsvRows = [];
 
+    // --- CLIENT-SIDE AI UTILITY ENGINES ---
+
+    // 1. Levenshtein String Similarity Engine
+    function levenshteinDistance(a, b) {
+      const matrix = [];
+      for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+      for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+      for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+          if (b.charAt(i - 1) === a.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+            );
+          }
+        }
+      }
+      return matrix[b.length][a.length];
+    }
+
+    function getStringSimilarity(str1, str2) {
+      const s1 = (str1 || '').toLowerCase().trim();
+      const s2 = (str2 || '').toLowerCase().trim();
+      if (!s1 || !s2) return 0;
+      if (s1 === s2) return 1.0;
+      const dist = levenshteinDistance(s1, s2);
+      const maxLen = Math.max(s1.length, s2.length);
+      return 1 - (dist / maxLen);
+    }
+
+    // 2. Smart CSV Column Auto-Matcher
+    const TARGET_FIELD_SYNONYMS = {
+      name: ['name', 'item', 'product', 'description', 'title', 'item_name'],
+      model: ['model', 'part', 'code', 'variant', 'version', 'type'],
+      sku: ['sku', 'barcode', 'identifier', 'item_code', 'upc', 'ean'],
+      category: ['category', 'cat', 'group', 'department', 'class'],
+      qtyPerCarton: ['qty_per_carton', 'pack', 'packaging', 'pcs_per_box', 'units_per_carton'],
+      whCartons: ['wh_cartons', 'warehouse', 'wh_stock', 'wh_qty', 'warehouse_cartons'],
+      shopCartons: ['shop_cartons', 'shop', 'floor_stock', 'shop_qty', 'store_cartons'],
+      unit: ['unit', 'uom', 'label', 'measure'],
+      cost: ['cost', 'unit_cost', 'buying_price', 'wholesale_price', 'purchase_price'],
+      price: ['price', 'unit_price', 'selling_price', 'retail_price', 'msrp'],
+      supplier: ['supplier', 'vendor', 'distributor', 'source']
+    };
+
+    function aiAutoMapCsvColumns(csvHeaders) {
+      const mapping = {};
+      Object.keys(TARGET_FIELD_SYNONYMS).forEach(fieldKey => {
+        let bestIndex = -1;
+        let highestScore = 0;
+
+        csvHeaders.forEach((header, idx) => {
+          const cleanHeader = header.toLowerCase().replace(/[^a-z0-9_]/g, '');
+          TARGET_FIELD_SYNONYMS[fieldKey].forEach(synonym => {
+            let score = getStringSimilarity(cleanHeader, synonym);
+            if (cleanHeader.includes(synonym) || synonym.includes(cleanHeader)) score += 0.3;
+            if (score > highestScore) {
+              highestScore = score;
+              bestIndex = idx;
+            }
+          });
+        });
+
+        mapping[fieldKey] = (highestScore >= 0.45) ? bestIndex : -1;
+      });
+      return mapping;
+    }
+
+    // 3. Auto Categorization & SKU Engine
+    const CATEGORY_KEYWORD_MAP = {
+      'Electronics': ['led', 'tv', 'screen', 'cable', 'charger', 'speaker', 'audio', 'phone', 'battery', 'adapter', 'router'],
+      'Home & Utensils': ['kettle', 'jiko', 'pan', 'cooker', 'table', 'chair', 'flask', 'spoon', 'plate', 'pot', 'tray'],
+      'Hardware & Tools': ['shock', 'control arm', 'tube', 'light', 'spotlight', 'valve', 'pump', 'tool', 'drill', 'screw'],
+      'Stationery & General': ['paper', 'pen', 'printer', 'label', 'tape', 'box', 'marker']
+    };
+
+    function aiPredictCategory(itemName) {
+      const lower = (itemName || '').toLowerCase();
+      for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORD_MAP)) {
+        if (keywords.some(kw => lower.includes(kw))) return cat;
+      }
+      return null;
+    }
+
+    function handleNameInput() {
+      const name = document.getElementById('f-name').value;
+      const catInput = document.getElementById('f-category');
+      const badge = document.getElementById('ai-cat-badge');
+
+      if (!skuEdited && name.length >= 3) {
+        const predictedCat = aiPredictCategory(name);
+        if (predictedCat) {
+          catInput.value = predictedCat;
+          if (badge) badge.style.display = 'inline-flex';
+        }
+      }
+      autoSKU();
+    }
+
+    // --- END AI ENGINES ---
+
     function formatDateToDDMMYYYY(dateStr) {
       if (!dateStr) return '';
       const parts = dateStr.split('T')[0].split('-');
@@ -958,6 +1109,57 @@
       item[locKey] = Math.max(0, Math.round((current + cartonDelta) * 1000) / 1000);
       saveSingleItem(item);
       logMovement(action, refNo, dateStr, item.name, qtyDisplayStr, routeStr);
+    }
+
+    // AI Demand Forecast Modal Functions
+    function openAiForecastModal() {
+      document.getElementById('ai-forecast-modal').classList.add('open');
+      renderAiForecast();
+    }
+
+    function closeAiForecastModal() {
+      document.getElementById('ai-forecast-modal').classList.remove('open');
+    }
+
+    function renderAiForecast() {
+      const tbody = document.getElementById('ai-forecast-tbody');
+      if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No inventory items available to analyze.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = items.map(it => {
+        const totalStockCartons = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
+        const moved30DaysCartons = getProduct30DayMovementCartons(it.name, it.qtyPerCarton);
+        const dailyBurnRate = moved30DaysCartons / 30;
+
+        let runOutText = '<span style="color:var(--positive);">30+ Days</span>';
+        if (dailyBurnRate > 0) {
+          const daysLeft = Math.floor(totalStockCartons / dailyBurnRate);
+          if (daysLeft <= 0) {
+            runOutText = '<span class="chip chip-danger">OUT OF STOCK</span>';
+          } else if (daysLeft <= 7) {
+            runOutText = `<span style="color:var(--danger); font-weight:600;">Critical (${daysLeft} days)</span>`;
+          } else if (daysLeft <= 15) {
+            runOutText = `<span style="color:var(--accent-orange); font-weight:600;">Low (${daysLeft} days)</span>`;
+          } else {
+            runOutText = `<span>${daysLeft} days</span>`;
+          }
+        }
+
+        const recommendedReorderCartons = Math.max(Math.ceil(dailyBurnRate * 30), parseInt(it.min) || 2);
+
+        return `
+          <tr style="border-bottom: 1px solid var(--border-divider);">
+            <td style="padding: 8px; font-weight: 600;">${escapeHtml(it.name)}</td>
+            <td style="padding: 8px;">${totalStockCartons.toFixed(1)} ctns</td>
+            <td style="padding: 8px;">${moved30DaysCartons.toFixed(1)} ctns</td>
+            <td style="padding: 8px;">${dailyBurnRate.toFixed(2)} ctn/day</td>
+            <td style="padding: 8px;">${runOutText}</td>
+            <td style="padding: 8px; font-weight: 600; color: var(--accent-purple);">${recommendedReorderCartons} ctns</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     // Supplier Price List Logic
@@ -1301,20 +1503,13 @@
           headers.map((h, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(h)}</option>`).join('');
       });
 
-      // Auto-select best matches
-      headers.forEach((h, idx) => {
-        const lower = h.toLowerCase();
-        if (lower.includes('name') || lower.includes('item')) document.getElementById('csv-map-name').value = idx;
-        else if (lower.includes('model')) document.getElementById('csv-map-model').value = idx;
-        else if (lower.includes('sku')) document.getElementById('csv-map-sku').value = idx;
-        else if (lower.includes('cat')) document.getElementById('csv-map-cat').value = idx;
-        else if (lower.includes('qty') || lower.includes('pack')) document.getElementById('csv-map-qtyPerCarton').value = idx;
-        else if (lower.includes('wh') || lower.includes('warehouse')) document.getElementById('csv-map-whCartons').value = idx;
-        else if (lower.includes('shop')) document.getElementById('csv-map-shopCartons').value = idx;
-        else if (lower.includes('unit')) document.getElementById('csv-map-unit').value = idx;
-        else if (lower.includes('cost') || lower.includes('buy')) document.getElementById('csv-map-cost').value = idx;
-        else if (lower.includes('price') || lower.includes('sell')) document.getElementById('csv-map-price').value = idx;
-        else if (lower.includes('supplier')) document.getElementById('csv-map-supplier').value = idx;
+      // AI-Powered Auto Mapping
+      const aiMapping = aiAutoMapCsvColumns(headers);
+      Object.keys(aiMapping).forEach(fieldKey => {
+        const mapSelect = document.getElementById('csv-map-' + fieldKey);
+        if (mapSelect && aiMapping[fieldKey] >= 0) {
+          mapSelect.value = aiMapping[fieldKey];
+        }
       });
 
       // Render 3 sample rows
@@ -1356,7 +1551,7 @@
             name: nameVal,
             model: getVal(row, 'csv-map-model'),
             sku: getVal(row, 'csv-map-sku', 'SKU-' + i),
-            category: getVal(row, 'csv-map-cat', 'General'),
+            category: getVal(row, 'csv-map-cat', aiPredictCategory(nameVal) || 'General'),
             qtyPerCarton: parseInt(getVal(row, 'csv-map-qtyPerCarton', '1')) || 1,
             whCartons: parseFloat(getVal(row, 'csv-map-whCartons', '0')) || 0,
             shopCartons: parseFloat(getVal(row, 'csv-map-shopCartons', '0')) || 0,
@@ -2057,7 +2252,7 @@
               <td>
                 <div class="item-name">
                   ${escapeHtml(it.name)}
-                  ${isLowStock ? `<span class="chip chip-danger" style="font-size:10px;">⚠️️ LOW STOCK</span>` : ''}
+                  ${isLowStock ? `<span class="chip chip-danger" style="font-size:10px;">⚠️ LOW STOCK</span>` : ''}
                 </div>
                 ${it.model ? `<div class="item-model">${escapeHtml(it.model)}</div>` : ''}
                 <div class="item-sku">${escapeHtml(it.sku)}</div>
@@ -2117,6 +2312,8 @@
       document.getElementById('edit-id').value = '';
       document.getElementById('modal-title').textContent = id ? 'Edit item' : 'Add single item';
       skuEdited = false;
+      const badge = document.getElementById('ai-cat-badge');
+      if (badge) badge.style.display = 'none';
       updateSupplierList();
 
       const initSection = document.getElementById('initial-stock-section');
@@ -2348,6 +2545,7 @@
     document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
     document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
     document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
+    document.getElementById('ai-forecast-modal').addEventListener('click', e => { if (e.target === document.getElementById('ai-forecast-modal')) closeAiForecastModal(); });
     document.getElementById('csv-preview-modal').addEventListener('click', e => { if (e.target === document.getElementById('csv-preview-modal')) closeCsvPreviewModal(); });
     document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
     document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
