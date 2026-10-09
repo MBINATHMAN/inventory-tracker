@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventory Stock & Operations Tracker with Embedded AI</title>
+  <title>Inventory Stock & Operations Tracker with AI Command Assistant</title>
   <style>
     :root {
       --bg: #ffffff;
@@ -54,6 +54,43 @@
     }
     .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    
+    /* AI Command Console Bar */
+    .ai-command-box {
+      border: 1px solid var(--accent-purple);
+      background: rgba(124, 58, 237, 0.04);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+    }
+    .ai-command-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent-purple);
+    }
+    .ai-command-input-group {
+      display: flex;
+      gap: 8px;
+    }
+    .ai-command-input {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+    }
+    .ai-command-input:focus {
+      border-color: var(--accent-purple);
+      box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+    }
+
     .stats-row {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -101,6 +138,8 @@
     .btn:hover { background: var(--surface-hover); }
     .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
     .btn-primary:hover { opacity: 0.85; background: var(--text); }
+    .btn-purple { background: var(--accent-purple); color: #fff; border-color: var(--accent-purple); }
+    .btn-purple:hover { opacity: 0.9; }
     .btn-danger { color: var(--danger); border-color: var(--danger); }
     .btn-danger:hover { background: rgba(220,38,38,0.08); }
     .btn-sm { padding: 4px 8px; font-size: 12px; }
@@ -218,7 +257,6 @@
       color: var(--text-secondary);
     }
 
-    /* AI Component Custom Styles */
     .ai-badge {
       display: inline-flex;
       align-items: center;
@@ -255,6 +293,18 @@
         <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openAiForecastModal()">🤖 AI Forecast</button>
         <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
         <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
+      </div>
+    </div>
+
+    <!-- AI Command Assistant Bar -->
+    <div class="ai-command-box">
+      <div class="ai-command-header">
+        <span>💬 AI Command Assistant (Natural Language Console)</span>
+        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Examples: "l3 mops are less by 3", "received 10 cartons of kettles", "transfer 2 boxes to shop"</span>
+      </div>
+      <div class="ai-command-input-group">
+        <input type="text" class="ai-command-input" id="ai-cmd-input" placeholder="Type a command e.g., 'l3 mops are less by three' or 'received 5 cartons of flasks'..." onkeydown="if(event.key==='Enter') processAiCommand()">
+        <button class="btn btn-purple" onclick="processAiCommand()">⚡ Execute Command</button>
       </div>
     </div>
 
@@ -940,7 +990,101 @@
       return 1 - (dist / maxLen);
     }
 
-    // 2. Smart CSV Column Auto-Matcher
+    // Number word converter helper (e.g. "three" -> 3)
+    function textToNumber(str) {
+      const numMap = { 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10 };
+      const parsedInt = parseInt(str);
+      if (!isNaN(parsedInt)) return parsedInt;
+      return numMap[str.toLowerCase()] || 0;
+    }
+
+    // 2. Natural Language AI Command Console Processor
+    function processAiCommand() {
+      const inputEl = document.getElementById('ai-cmd-input');
+      const rawCmd = (inputEl.value || '').trim();
+      if (!rawCmd) { alert('Please enter a command.'); return; }
+
+      const lower = rawCmd.toLowerCase();
+
+      // Extract numeric quantity (words or numbers)
+      let qty = 0;
+      const numberMatch = lower.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
+      if (numberMatch) {
+        qty = textToNumber(numberMatch[1]);
+      }
+
+      if (qty <= 0) {
+        alert('Could not detect a valid quantity in your command. E.g. "l3 mops are less by 3"');
+        return;
+      }
+
+      // Determine intent action
+      let action = 'DAMAGE_LOSS';
+      if (lower.includes('receive') || lower.includes('got') || lower.includes('add') || lower.includes('bought')) {
+        action = 'RECEIVE';
+      } else if (lower.includes('transfer') || lower.includes('move')) {
+        action = 'TRANSFER';
+      } else if (lower.includes('less') || lower.includes('damage') || lower.includes('broken') || lower.includes('lost') || lower.includes('short')) {
+        action = 'DAMAGE_LOSS';
+      } else if (lower.includes('dispatch') || lower.includes('supply') || lower.includes('sold')) {
+        action = 'SUPPLY_CLIENT';
+      }
+
+      // Find best matching item from database using string similarity
+      let bestItem = null;
+      let highestScore = 0;
+
+      items.forEach(it => {
+        const nameScore = getStringSimilarity(lower, it.name);
+        const modelScore = getStringSimilarity(lower, it.model || '');
+        const skuScore = getStringSimilarity(lower, it.sku || '');
+        const maxScore = Math.max(nameScore, modelScore, skuScore);
+
+        if (maxScore > highestScore) {
+          highestScore = maxScore;
+          bestItem = it;
+        }
+      });
+
+      // Partial fallback match
+      if (!bestItem || highestScore < 0.25) {
+        items.forEach(it => {
+          if (lower.includes(it.name.toLowerCase()) || (it.model && lower.includes(it.model.toLowerCase()))) {
+            bestItem = it;
+            highestScore = 0.8;
+          }
+        });
+      }
+
+      if (!bestItem) {
+        alert(`Could not find a matching product in your database for command: "${rawCmd}"`);
+        return;
+      }
+
+      // Confirmation Prompt
+      const isCarton = lower.includes('carton') || lower.includes('box') || lower.includes('ctn');
+      const unitText = isCarton ? 'Cartons' : (bestItem.unit || 'pcs');
+      const cartonsToDeduct = isCarton ? qty : (qty / (parseFloat(bestItem.qtyPerCarton) || 1));
+
+      const confirmMsg = `AI COMMAND CONFIRMATION:\n\nAction: ${action}\nProduct: ${bestItem.name}\nQuantity: ${qty} ${unitText}\n\nProceed to execute?`;
+      if (!confirm(confirmMsg)) return;
+
+      const dateStr = new Date().toISOString().split('T')[0];
+
+      if (action === 'DAMAGE_LOSS') {
+        mutateStockAndLog(bestItem, 'shop', -cartonsToDeduct, 'DAMAGE_LOSS', 'AI-CMD', dateStr, `${qty} ${unitText}`, 'AI Command Shrinkage');
+      } else if (action === 'RECEIVE') {
+        mutateStockAndLog(bestItem, 'warehouse', cartonsToDeduct, 'RECEIVE', 'AI-CMD', dateStr, `${qty} ${unitText}`, 'AI Command Inbound');
+      } else if (action === 'SUPPLY_CLIENT') {
+        mutateStockAndLog(bestItem, 'shop', -cartonsToDeduct, 'SUPPLY_CLIENT', 'AI-CMD', dateStr, `${qty} ${unitText}`, 'AI Command Dispatch');
+      }
+
+      inputEl.value = '';
+      render();
+      alert(`⚡ Successfully executed command for ${bestItem.name}!`);
+    }
+
+    // 3. Smart CSV Column Auto-Matcher
     const TARGET_FIELD_SYNONYMS = {
       name: ['name', 'item', 'product', 'description', 'title', 'item_name'],
       model: ['model', 'part', 'code', 'variant', 'version', 'type'],
@@ -978,10 +1122,10 @@
       return mapping;
     }
 
-    // 3. Auto Categorization & SKU Engine
+    // 4. Auto Categorization & SKU Engine
     const CATEGORY_KEYWORD_MAP = {
       'Electronics': ['led', 'tv', 'screen', 'cable', 'charger', 'speaker', 'audio', 'phone', 'battery', 'adapter', 'router'],
-      'Home & Utensils': ['kettle', 'jiko', 'pan', 'cooker', 'table', 'chair', 'flask', 'spoon', 'plate', 'pot', 'tray'],
+      'Home & Utensils': ['kettle', 'jiko', 'pan', 'cooker', 'table', 'chair', 'flask', 'spoon', 'plate', 'pot', 'tray', 'mop'],
       'Hardware & Tools': ['shock', 'control arm', 'tube', 'light', 'spotlight', 'valve', 'pump', 'tool', 'drill', 'screw'],
       'Stationery & General': ['paper', 'pen', 'printer', 'label', 'tape', 'box', 'marker']
     };
@@ -1503,7 +1647,6 @@
           headers.map((h, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(h)}</option>`).join('');
       });
 
-      // AI-Powered Auto Mapping
       const aiMapping = aiAutoMapCsvColumns(headers);
       Object.keys(aiMapping).forEach(fieldKey => {
         const mapSelect = document.getElementById('csv-map-' + fieldKey);
@@ -1512,7 +1655,6 @@
         }
       });
 
-      // Render 3 sample rows
       const table = document.getElementById('csv-preview-table');
       const samples = parsedCsvRows.slice(0, 4);
       table.innerHTML = samples.map((r, rIdx) => `
@@ -1775,7 +1917,6 @@
           it[locKey] = newStock;
           atomicUpdates['/items/' + it.id + '/' + locKey] = newStock;
 
-          // Add audit log entry
           const logId = generateUniqueId() + totalItemsCount;
           atomicUpdates['/auditLogs/' + logId] = {
             id: logId,
