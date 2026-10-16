@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventory Stock & Operations Tracker with AI Command Assistant</title>
+  <title>Inventory Stock & Operations Tracker with AI Assistant</title>
   <style>
     :root {
       --bg: #ffffff;
@@ -300,11 +300,11 @@
     <div class="ai-command-box">
       <div class="ai-command-header">
         <span>💬 AI Command Assistant (Natural Language Console)</span>
-        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Examples: "l3 mops are less by 3", "received 10 cartons of kettles", "transfer 2 boxes to shop"</span>
+        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Ask queries or enter actions e.g., "how many types of mugs do I have?", "l3 mops are less by 3", "received 10 cartons of kettles"</span>
       </div>
       <div class="ai-command-input-group">
-        <input type="text" class="ai-command-input" id="ai-cmd-input" placeholder="Type a command e.g., 'l3 mops are less by three' or 'received 5 cartons of flasks'..." onkeydown="if(event.key==='Enter') processAiCommand()">
-        <button class="btn btn-purple" onclick="processAiCommand()">⚡ Execute Command</button>
+        <input type="text" class="ai-command-input" id="ai-cmd-input" placeholder="Type a command or query e.g. 'how many types of mugs do I have?' or 'l3 mops are less by 3'..." onkeydown="if(event.key==='Enter') processAiCommand()">
+        <button class="btn btn-purple" onclick="processAiCommand()">⚡ Execute / Ask AI</button>
       </div>
     </div>
 
@@ -1002,11 +1002,43 @@
     function processAiCommand() {
       const inputEl = document.getElementById('ai-cmd-input');
       const rawCmd = (inputEl.value || '').trim();
-      if (!rawCmd) { alert('Please enter a command.'); return; }
+      if (!rawCmd) { alert('Please enter a command or query.'); return; }
 
       const lower = rawCmd.toLowerCase();
 
-      // Extract numeric quantity (words or numbers)
+      // 2A. QUERY / COUNT INTENT
+      if (lower.startsWith('how many') || lower.includes('list') || lower.includes('show') || lower.includes('count')) {
+        const queryTerm = lower
+          .replace(/how many|types of|kinds of|do i have|list|show|count|my|items|products|all/gi, '')
+          .trim();
+
+        if (!queryTerm) {
+          alert(`🤖 AI Assistant: You currently have ${items.length} total product types in your inventory database.`);
+          return;
+        }
+
+        const matches = items.filter(it => 
+          it.name.toLowerCase().includes(queryTerm) ||
+          (it.category && it.category.toLowerCase().includes(queryTerm)) ||
+          (it.model && it.model.toLowerCase().includes(queryTerm))
+        );
+
+        if (matches.length === 0) {
+          alert(`🤖 AI Assistant: No products matching "${queryTerm}" were found in your inventory.`);
+          return;
+        }
+
+        // Auto-filter main UI dashboard table
+        document.getElementById('search').value = queryTerm;
+        render();
+
+        const summaryList = matches.map(m => `• ${m.name} (${(parseFloat(m.whCartons)||0) + (parseFloat(m.shopCartons)||0)} Cartons Total)`).join('\n');
+        alert(`🤖 AI Assistant:\n\nYou have ${matches.length} type(s) of "${queryTerm}" in stock:\n\n${summaryList}`);
+        inputEl.value = '';
+        return;
+      }
+
+      // 2B. TRANSACTION INTENTS (Receive, Transfer, Loss, Dispatch)
       let qty = 0;
       const numberMatch = lower.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
       if (numberMatch) {
@@ -1014,11 +1046,10 @@
       }
 
       if (qty <= 0) {
-        alert('Could not detect a valid quantity in your command. E.g. "l3 mops are less by 3"');
+        alert('Could not detect a valid quantity or query in your command. Examples:\n• "how many types of mugs do I have?"\n• "l3 mops are less by 3"');
         return;
       }
 
-      // Determine intent action
       let action = 'DAMAGE_LOSS';
       if (lower.includes('receive') || lower.includes('got') || lower.includes('add') || lower.includes('bought')) {
         action = 'RECEIVE';
@@ -1030,7 +1061,6 @@
         action = 'SUPPLY_CLIENT';
       }
 
-      // Find best matching item from database using string similarity
       let bestItem = null;
       let highestScore = 0;
 
@@ -1046,7 +1076,6 @@
         }
       });
 
-      // Partial fallback match
       if (!bestItem || highestScore < 0.25) {
         items.forEach(it => {
           if (lower.includes(it.name.toLowerCase()) || (it.model && lower.includes(it.model.toLowerCase()))) {
@@ -1061,7 +1090,6 @@
         return;
       }
 
-      // Confirmation Prompt
       const isCarton = lower.includes('carton') || lower.includes('box') || lower.includes('ctn');
       const unitText = isCarton ? 'Cartons' : (bestItem.unit || 'pcs');
       const cartonsToDeduct = isCarton ? qty : (qty / (parseFloat(bestItem.qtyPerCarton) || 1));
@@ -1125,7 +1153,7 @@
     // 4. Auto Categorization & SKU Engine
     const CATEGORY_KEYWORD_MAP = {
       'Electronics': ['led', 'tv', 'screen', 'cable', 'charger', 'speaker', 'audio', 'phone', 'battery', 'adapter', 'router'],
-      'Home & Utensils': ['kettle', 'jiko', 'pan', 'cooker', 'table', 'chair', 'flask', 'spoon', 'plate', 'pot', 'tray', 'mop'],
+      'Home & Utensils': ['kettle', 'jiko', 'pan', 'cooker', 'table', 'chair', 'flask', 'spoon', 'plate', 'pot', 'tray', 'mop', 'mug', 'cup'],
       'Hardware & Tools': ['shock', 'control arm', 'tube', 'light', 'spotlight', 'valve', 'pump', 'tool', 'drill', 'screw'],
       'Stationery & General': ['paper', 'pen', 'printer', 'label', 'tape', 'box', 'marker']
     };
