@@ -269,21 +269,15 @@
       font-weight: 600;
     }
 
-    /* Print Overrides: Ensures full multi-page catalog printing without scrollbar truncation */
     @media print {
       body * { visibility: hidden; }
       #pricelist-print-area, #pricelist-print-area * { visibility: visible; }
       #pricelist-print-area {
-        position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 10px;
+        position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 20px;
       }
-      #pl-table-wrap {
-        max-height: none !important;
-        overflow: visible !important;
-        border: none !important;
-      }
-      #pricelist-print-area table { width: 100%; border-collapse: collapse; font-size: 11pt; }
-      #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
-      #pricelist-print-area th { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; }
+      #pricelist-print-area table { width: 100%; border-collapse: collapse; font-size: 12pt; }
+      #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      #pricelist-print-area th { background-color: #f2f2f2; }
     }
   </style>
 </head>
@@ -627,121 +621,4 @@
           <div class="form-group">
             <label style="font-weight:600;">Receiving Destination</label>
             <select id="rec-destination">
-              <option value="warehouse">🏭 Warehouse</option>
-              <option value="shop">🏬 Shop Store</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Invoice / Waybill No.</label>
-            <input type="text" id="rec-invoice-no" placeholder="e.g. INV-98214">
-          </div>
-          <div class="form-group">
-            <label>Delivery Date</label>
-            <input type="date" id="rec-delivery-date">
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-top: 4px;">
-          <input type="text" class="search-input" id="rec-search" placeholder="🔍 Search product name, model, or SKU within supplier items..." oninput="renderBulkReceiveItems()" style="width: 100%;">
-        </div>
-
-        <div class="order-list" id="bulk-receive-items"></div>
-        <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="processBulkReceive()">Receive Stock</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Transfer Modal -->
-    <div class="modal-overlay" id="transfer-modal">
-      <div class="modal">
-        <h2>🔄 Transfer Stock Between Locations</h2>
-        <div class="stock-info-box" id="transfer-info"></div>
-        <form id="transfer-form" onsubmit="processTransfer(event)">
-          <input type="hidden" id="transfer-id">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Transfer Direction</label>
-              <select id="transfer-route" onchange="updateTransferInfo()">
-                <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Floor</option>
-                <option value="shop_to_wh">🏬 Shop Floor ➔ 🏭 Warehouse</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Transfer Unit</label>
-              <select id="transfer-unit-mode" onchange="updateTransferLabel()">
-                <option value="cartons">Cartons</option>
-                <option value="pcs">Pieces / Units</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Transfer Note / Ref No.</label>
-              <input type="text" id="transfer-delivery-no" placeholder="e.g. TR-2026-001">
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="transfer-date" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label id="transfer-qty-label">Quantity to Transfer</label>
-            <input type="number" id="transfer-input-val" min="1" step="any" required placeholder="Enter quantity">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Complete Transfer</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Direct Client Delivery / Supply Modal -->
-    <div class="modal-overlay" id="dispatch-modal">
-      <div class="modal">
-        <h2>🚚 Supply Goods to Client / Order Dispatch</h2>
-        <div class="stock-info-box" id="dispatch-info"></div>
-        <form id="dispatch-form" onsubmit="processDispatch(event)">
-          <input type="hidden" id="dispatch-id">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Supply From (Source Stock)</label>
-              <select id="dispatch-source" onchange="updateDispatchInfo()">
-                <option value="warehouse">🏭 Warehouse Stock</option>
-                <option value="shop">🏬 Shop Floor Stock</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Deduct Unit</label>
-              <select id="dispatch-unit-mode" onchange="updateDispatchLabel()">
-                <option value="cartons">Cartons</option>
-                <option value="pcs">Pieces / Units</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Delivery Note / Receipt No.</label>
-              <input type="text" id="dispatch-delivery-no" placeholder="e.g. DN-2026-992">
-            </div>
-            <div class="form-group">
-              <label>Dispatch Date</label>
-              <input type="date" id="dispatch-date" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Client / Recipient Name</label>
-            <input type="text" id="dispatch-client" list="client-list" required placeholder="Start typing or enter new client name..." autocomplete="off">
-            <datalist id="client-list"></datalist>
-          </div>
-          <div class="form-group">
-            <label id="dispatch-qty-label">Quantity Dispatched</label>
-            <input type="number" id="dispatch-input-val" min="1" step="any" required placeholder="Enter quantity">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeDispatchModal()">Cancel</button
+              <option value="warehouse">🏭
