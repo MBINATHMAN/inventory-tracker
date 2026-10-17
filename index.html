@@ -213,25 +213,45 @@
     .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--text); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-    .item-name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
-    .item-model { font-size: 12px; color: var(--text-secondary); }
-    .item-sku { font-size: 12px; color: var(--text-tertiary); font-family: var(--font-mono); }
-    .price { font-variant-numeric: tabular-nums; }
-    .carton-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
-    .order-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-divider); }
-    .order-item-info { flex: 1; }
-    .order-item-name { font-weight: 500; font-size: 14px; }
-    .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
-    .order-qty { width: 85px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-weight: 600; }
-    .order-list { max-height: 380px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
-    .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
 
+    /* PRINT STYLES - FIXED TO SHOW ALL ITEMS ACROSS PAGES */
     @media print {
-      body * { visibility: hidden; }
-      #pricelist-print-area, #pricelist-print-area * { visibility: visible; }
-      #pricelist-print-area { position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 20px; }
-      #pricelist-print-area table { width: 100%; border-collapse: collapse; font-size: 12pt; }
-      #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+      body * { 
+        visibility: hidden !important; 
+      }
+      #pricelist-print-area, 
+      #pricelist-print-area * { 
+        visibility: visible !important; 
+      }
+      #pricelist-print-area { 
+        position: absolute !important; 
+        left: 0 !important; 
+        top: 0 !important; 
+        width: 100% !important; 
+        color: #000 !important; 
+        background: #fff !important; 
+        padding: 0 !important; 
+      }
+      #pl-table-wrap {
+        max-height: none !important;
+        overflow: visible !important;
+        border: none !important;
+      }
+      #pricelist-print-area table { 
+        width: 100% !important; 
+        border-collapse: collapse !important; 
+        font-size: 11pt !important; 
+      }
+      #pricelist-print-area th, 
+      #pricelist-print-area td { 
+        border: 1px solid #ddd !important; 
+        padding: 6px 8px !important; 
+        text-align: left !important; 
+      }
+      #pricelist-print-area th {
+        background-color: #f2f2f2 !important;
+        -webkit-print-color-adjust: exact;
+      }
     }
   </style>
 </head>
@@ -318,23 +338,57 @@
       </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Supplier Price List Generator Modal -->
     <div class="modal-overlay" id="pricelist-modal">
       <div class="modal" style="max-width: 850px;">
         <h2>🏷️ Generate Supplier Price List</h2>
         <div class="form-row" style="grid-template-columns: 2fr 1fr 1fr; gap: 8px;">
-          <div class="form-group"><label>Supplier *</label><select id="pl-supplier" onchange="renderPriceList()"></select></div>
-          <div class="form-group"><label>Category</label><select id="pl-category" onchange="renderPriceList()"><option value="">-- All --</option></select></div>
-          <div class="form-group"><label>Prices</label><select id="pl-type" onchange="renderPriceList()"><option value="both">Both</option><option value="cost">Cost Only</option><option value="price">Selling Price Only</option></select></div>
+          <div class="form-group">
+            <label>Select Supplier *</label>
+            <select id="pl-supplier" onchange="renderPriceList()"></select>
+          </div>
+          <div class="form-group">
+            <label>Filter Category</label>
+            <select id="pl-category" onchange="renderPriceList()">
+              <option value="">-- All Categories --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Prices to Show</label>
+            <select id="pl-type" onchange="renderPriceList()">
+              <option value="both">Cost & Selling Price</option>
+              <option value="cost">Unit Cost Only</option>
+              <option value="price">Selling Price Only</option>
+            </select>
+          </div>
         </div>
+
         <div id="pricelist-print-area">
-          <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+          <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--border); padding-bottom: 8px;">
+            <div>
+              <h3 id="pl-header-supplier" style="margin: 0; font-size: 18px;">Supplier Price Catalog</h3>
+              <span id="pl-header-meta" style="font-size: 12px; color: var(--text-tertiary);">Generated on: -</span>
+            </div>
+            <div style="text-align: right; font-size: 12px; color: var(--text-secondary);" id="pl-header-count">0 items</div>
+          </div>
+          <div id="pl-table-wrap" style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-              <thead><tr style="background: var(--surface);"><th>SKU</th><th>Item</th><th>Model</th><th>Category</th><th>Pack</th><th id="pl-th-cost">Cost</th><th id="pl-th-price">Price</th></tr></thead>
+              <thead>
+                <tr style="background: var(--surface);">
+                  <th style="padding: 8px;">SKU</th>
+                  <th style="padding: 8px;">Item Name</th>
+                  <th style="padding: 8px;">Model</th>
+                  <th style="padding: 8px;">Category</th>
+                  <th style="padding: 8px;">Packaging</th>
+                  <th style="padding: 8px; text-align: right;" id="pl-th-cost">Unit Cost (KSh)</th>
+                  <th style="padding: 8px; text-align: right;" id="pl-th-price">Unit Price (KSh)</th>
+                </tr>
+              </thead>
               <tbody id="pricelist-tbody"></tbody>
             </table>
           </div>
         </div>
+
         <div class="modal-actions" style="margin-top: 16px;">
           <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Print Price List</button>
           <button type="button" class="btn" onclick="closePricelistModal()">Close</button>
@@ -416,7 +470,6 @@
       render();
     });
 
-    // Safe standalone AI search query processor
     function executeAiQuery() {
       const inputEl = document.getElementById('ai-query-input');
       const rawText = (inputEl.value || '').trim().toLowerCase();
@@ -446,6 +499,77 @@
       inputEl.value = '';
     }
 
+    function openPricelistModal() {
+      document.getElementById('pricelist-modal').classList.add('open');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
+
+      document.getElementById('pl-supplier').innerHTML = '<option value="">-- Select Supplier --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      
+      document.getElementById('pl-category').innerHTML = '<option value="">-- All Categories --</option>' +
+        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+      renderPriceList();
+    }
+
+    function closePricelistModal() {
+      document.getElementById('pricelist-modal').classList.remove('open');
+    }
+
+    function renderPriceList() {
+      const supplier = document.getElementById('pl-supplier').value;
+      const category = document.getElementById('pl-category').value;
+      const type = document.getElementById('pl-type').value;
+      const tbody = document.getElementById('pricelist-tbody');
+
+      const todayStr = new Date().toLocaleDateString('en-GB');
+      document.getElementById('pl-header-supplier').textContent = supplier ? `Price Catalog: ${supplier}` : 'Supplier Price Catalog';
+      document.getElementById('pl-header-meta').textContent = `Generated on: ${todayStr}`;
+
+      document.getElementById('pl-th-cost').style.display = (type === 'price') ? 'none' : 'table-cell';
+      document.getElementById('pl-th-price').style.display = (type === 'cost') ? 'none' : 'table-cell';
+
+      if (!supplier) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">Please select a supplier to display items.</td></tr>';
+        document.getElementById('pl-header-count').textContent = '0 items';
+        return;
+      }
+
+      let filtered = items.filter(i => i.supplier === supplier);
+      if (category) {
+        filtered = filtered.filter(i => i.category === category);
+      }
+
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+      document.getElementById('pl-header-count').textContent = `${filtered.length} item(s)`;
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">No items found for this supplier/category.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(it => {
+        const costVal = parseFloat(it.cost) || 0;
+        const priceVal = parseFloat(it.price) || 0;
+        return `
+          <tr style="border-bottom: 1px solid var(--border-divider);">
+            <td style="padding: 8px; font-family: var(--font-mono);">${escapeHtml(it.sku)}</td>
+            <td style="padding: 8px; font-weight: 600;">${escapeHtml(it.name)}</td>
+            <td style="padding: 8px; color: var(--text-secondary);">${escapeHtml(it.model || 'N/A')}</td>
+            <td style="padding: 8px;">${escapeHtml(it.category || 'General')}</td>
+            <td style="padding: 8px; color: var(--text-tertiary);">${it.qtyPerCarton || 1} ${escapeHtml(it.unit || 'pcs')}/ctn</td>
+            ${type !== 'price' ? `<td style="padding: 8px; text-align: right;">KSh ${costVal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>` : ''}
+            ${type !== 'cost' ? `<td style="padding: 8px; text-align: right; font-weight: 600;">KSh ${priceVal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>` : ''}
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(t) {
+      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    }
+
     function render() {
       const q = document.getElementById('search').value.toLowerCase();
       const filtered = items.filter(i => 
@@ -464,8 +588,8 @@
         empty.style.display = 'none'; table.style.display = 'table';
         tbody.innerHTML = filtered.map(it => `
           <tr>
-            <td><strong>${it.name}</strong><br><small>${it.sku}</small></td>
-            <td><span class="chip">${it.category || 'General'}</span></td>
+            <td><strong>${escapeHtml(it.name)}</strong><br><small>${escapeHtml(it.sku)}</small></td>
+            <td><span class="chip">${escapeHtml(it.category || 'General')}</span></td>
             <td><strong>${it.whCartons || 0} Cartons</strong></td>
             <td><strong>${it.shopCartons || 0} Cartons</strong></td>
             <td>KSh ${parseFloat(it.cost || 0).toFixed(2)}</td>
@@ -530,9 +654,10 @@
       if (confirm('Delete this item?')) db.ref('items/' + id).remove();
     }
 
-    function openPricelistModal() { document.getElementById('pricelist-modal').classList.add('open'); }
-    function closePricelistModal() { document.getElementById('pricelist-modal').classList.remove('open'); }
     function exportCSV() { alert('Exporting active stock list...'); }
+
+    document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
+    document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
   </script>
 </body>
 </html>
