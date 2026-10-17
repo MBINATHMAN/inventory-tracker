@@ -219,8 +219,19 @@
     .order-qty { width: 85px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-weight: 600; }
     .order-list { max-height: 380px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
     .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
+    .dispatch-calc-summary {
+      background: rgba(37, 99, 235, 0.06);
+      border: 1px solid rgba(37, 99, 235, 0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 8px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      font-weight: 600;
+    }
 
-    /* CONTINUOUS TABLE PRINT CSS - PREVENTS ONE ITEM PER PAGE */
+    /* CONTINUOUS TABLE PRINT CSS */
     @media print {
       body * { 
         visibility: hidden !important; 
@@ -277,9 +288,9 @@
           <span class="badge-dot" id="sync-dot"></span>
           <span id="sync-label">Cloud Sync: Connecting...</span>
         </div>
-        <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openAiForecastModal()">🤖 AI Forecast</button>
-        <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
-        <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
+        <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" id="btn-ai-forecast">🤖 AI Forecast</button>
+        <button class="btn" id="btn-bulk-receive">📦 Receive Supplier Order</button>
+        <button class="btn btn-primary" id="btn-add-item">+ Add single item</button>
       </div>
     </div>
 
@@ -290,8 +301,8 @@
         <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Examples: "mugs", "how many types of mugs do I have?", "kettles"</span>
       </div>
       <div class="ai-command-input-group">
-        <input type="text" class="ai-command-input" id="ai-query-input" placeholder="Ask e.g., 'how many types of mugs do I have?' or 'mops'..." onkeydown="if(event.key==='Enter') executeAiQuery()">
-        <button class="btn btn-purple" onclick="executeAiQuery()">🔎 Search / Count</button>
+        <input type="text" class="ai-command-input" id="ai-query-input" placeholder="Ask e.g., 'how many types of mugs do I have?' or 'mops'...">
+        <button class="btn btn-purple" id="btn-ai-search">🔎 Search / Count</button>
       </div>
     </div>
 
@@ -319,31 +330,31 @@
     </div>
 
     <div class="toolbar">
-      <input type="text" class="search-input" id="search" placeholder="Search by name, model, SKU, category, or supplier..." oninput="render()">
+      <input type="text" class="search-input" id="search" placeholder="Search by name, model, SKU, category, or supplier...">
       <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; padding: 0 4px;">
-        <input type="checkbox" id="filter-low-stock" onchange="render()"> ⚠️ Low Stock Only
+        <input type="checkbox" id="filter-low-stock"> ⚠️ Low Stock Only
       </label>
-      <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openCategoryManagerModal()">🏷️ Manage Categories</button>
-      <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" onclick="openSupplierManagerModal()">🏭 Manage Suppliers</button>
-      <button class="btn" style="border-color:var(--positive); color:var(--positive);" onclick="openPricelistModal()">🏷️ Supplier Price Lists</button>
-      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
-      <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
-      <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
-      <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
-      <button class="btn" onclick="openOrderModal()">⚡ Smart PO Order</button>
-      <button class="btn" onclick="exportCSV()">Export CSV</button>
+      <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" id="btn-manage-categories">🏷️ Manage Categories</button>
+      <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" id="btn-manage-suppliers">🏭 Manage Suppliers</button>
+      <button class="btn" style="border-color:var(--positive); color:var(--positive);" id="btn-price-lists">🏷️ Supplier Price Lists</button>
+      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" id="btn-import-csv">📥 Import CSV Data</button>
+      <input type="file" id="csv-file-input" accept=".csv" style="display:none;">
+      <button class="btn" id="btn-audit-logs">📜 Movement Audit Log</button>
+      <button class="btn" id="btn-stock-take">📋 Stock Take</button>
+      <button class="btn" id="btn-smart-po">⚡ Smart PO Order</button>
+      <button class="btn" id="btn-export-csv">Export CSV</button>
     </div>
 
     <div class="table-wrap">
       <table id="inventory-table">
         <thead>
           <tr>
-            <th id="th-name" onclick="sortBy('name')">Item</th>
-            <th id="th-category" onclick="sortBy('category')">Category</th>
+            <th id="th-name">Item</th>
+            <th id="th-category">Category</th>
             <th>Warehouse Balance</th>
             <th>Shop Balance</th>
-            <th id="th-cost" onclick="sortBy('cost')">Unit Cost</th>
-            <th id="th-price" onclick="sortBy('price')">Unit Price</th>
+            <th id="th-cost">Unit Cost</th>
+            <th id="th-price">Unit Price</th>
             <th>Margin %</th>
             <th style="width: 270px;">Actions</th>
           </tr>
@@ -375,7 +386,7 @@
           </table>
         </div>
         <div class="modal-actions" style="margin-top: 16px;">
-          <button type="button" class="btn" onclick="closeAiForecastModal()">Close</button>
+          <button type="button" class="btn" id="btn-close-ai-forecast">Close</button>
         </div>
       </div>
     </div>
@@ -387,17 +398,17 @@
         <div class="form-row" style="grid-template-columns: 2fr 1fr 1fr; gap: 8px;">
           <div class="form-group">
             <label>Select Supplier *</label>
-            <select id="pl-supplier" onchange="renderPriceList()"></select>
+            <select id="pl-supplier"></select>
           </div>
           <div class="form-group">
             <label>Filter Category</label>
-            <select id="pl-category" onchange="renderPriceList()">
+            <select id="pl-category">
               <option value="">-- All Categories --</option>
             </select>
           </div>
           <div class="form-group">
             <label>Prices to Show</label>
-            <select id="pl-type" onchange="renderPriceList()">
+            <select id="pl-type">
               <option value="both">Cost & Selling Price</option>
               <option value="cost">Unit Cost Only</option>
               <option value="price">Selling Price Only</option>
@@ -433,7 +444,7 @@
 
         <div class="modal-actions" style="margin-top: 16px;">
           <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Print Price List</button>
-          <button type="button" class="btn" onclick="closePricelistModal()">Close</button>
+          <button type="button" class="btn" id="btn-close-pricelist">Close</button>
         </div>
       </div>
     </div>
@@ -444,7 +455,7 @@
         <h2>🏷️ Manage Categories</h2>
         <div class="order-list" id="category-manager-list"></div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeCategoryManagerModal()">Close</button>
+          <button type="button" class="btn" id="btn-close-category">Close</button>
         </div>
       </div>
     </div>
@@ -455,7 +466,7 @@
         <h2>🏭 Manage Suppliers</h2>
         <div class="order-list" id="supplier-manager-list"></div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeSupplierManagerModal()">Close</button>
+          <button type="button" class="btn" id="btn-close-supplier">Close</button>
         </div>
       </div>
     </div>
@@ -467,7 +478,7 @@
         <div class="form-row">
           <div class="form-group">
             <label style="font-weight:600;">Select Supplier</label>
-            <select id="receive-supplier-select" onchange="renderBulkReceiveItems()">
+            <select id="receive-supplier-select">
               <option value="">-- Choose Supplier --</option>
             </select>
           </div>
@@ -481,8 +492,8 @@
         </div>
         <div class="order-list" id="bulk-receive-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="processBulkReceive()">Receive Stock</button>
+          <button type="button" class="btn" id="btn-close-bulk-receive">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btn-process-bulk-receive">Receive Stock</button>
         </div>
       </div>
     </div>
@@ -492,12 +503,12 @@
       <div class="modal">
         <h2>🔄 Transfer Stock</h2>
         <div class="stock-info-box" id="transfer-info"></div>
-        <form id="transfer-form" onsubmit="processTransfer(event)">
+        <form id="transfer-form">
           <input type="hidden" id="transfer-id">
           <div class="form-row">
             <div class="form-group">
               <label>Transfer Direction</label>
-              <select id="transfer-route" onchange="updateTransferInfo()">
+              <select id="transfer-route">
                 <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Floor</option>
                 <option value="shop_to_wh">🏬 Shop Floor ➔ 🏭 Warehouse</option>
               </select>
@@ -508,40 +519,72 @@
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
+            <button type="button" class="btn" id="btn-close-transfer">Cancel</button>
             <button type="submit" class="btn btn-primary">Complete Transfer</button>
           </div>
         </form>
       </div>
     </div>
 
-    <!-- Supply / Dispatch Modal -->
+    <!-- Enhanced Supply / Dispatch Modal -->
     <div class="modal-overlay" id="dispatch-modal">
       <div class="modal">
         <h2>🚚 Supply Goods to Client</h2>
         <div class="stock-info-box" id="dispatch-info"></div>
-        <form id="dispatch-form" onsubmit="processDispatch(event)">
+        <form id="dispatch-form">
           <input type="hidden" id="dispatch-id">
+          
           <div class="form-row">
             <div class="form-group">
-              <label>Source Stock</label>
+              <label>Source Stock Location</label>
               <select id="dispatch-source">
-                <option value="warehouse">Warehouse</option>
-                <option value="shop">Shop</option>
+                <option value="warehouse">🏭 Warehouse</option>
+                <option value="shop">🏬 Shop Floor</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Client Name</label>
-              <input type="text" id="dispatch-client" required>
+              <label>Client / Customer Name</label>
+              <input type="text" id="dispatch-client" placeholder="Enter customer name..." required>
             </div>
           </div>
-          <div class="form-group">
-            <label>Cartons Dispatched</label>
-            <input type="number" id="dispatch-input-val" min="1" step="any" required>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Supply Quantity Mode</label>
+              <select id="dispatch-mode">
+                <option value="cartons">Full Cartons</option>
+                <option value="pieces">Loose Pieces</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label id="dispatch-qty-label">Quantity to Dispatch</label>
+              <input type="number" id="dispatch-input-val" min="0.1" step="any" required>
+            </div>
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeDispatchModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Dispatch Order</button>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Selling Price Per Unit (KSh)</label>
+              <input type="number" id="dispatch-unit-price" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Payment Status</label>
+              <select id="dispatch-payment-status">
+                <option value="Paid">Paid in Full</option>
+                <option value="Credit / Unpaid">Credit / Unpaid Ledger</option>
+                <option value="Partial Deposit">Partial Deposit</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="dispatch-calc-summary">
+            <span>Total Units Supplied: <strong id="dispatch-calc-units">0 pcs</strong></span>
+            <span>Total Invoice Value: <strong id="dispatch-calc-total" style="color:var(--accent-purple);">KSh 0.00</strong></span>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 16px;">
+            <button type="button" class="btn" id="btn-close-dispatch">Cancel</button>
+            <button type="submit" class="btn btn-primary">Dispatch Order & Update Stock</button>
           </div>
         </form>
       </div>
@@ -552,7 +595,7 @@
       <div class="modal">
         <h2>🗑️ Record Damage / Loss</h2>
         <div class="stock-info-box" id="loss-info"></div>
-        <form id="loss-form" onsubmit="processLoss(event)">
+        <form id="loss-form">
           <input type="hidden" id="loss-id">
           <div class="form-row">
             <div class="form-group">
@@ -568,7 +611,7 @@
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeLossModal()">Cancel</button>
+            <button type="button" class="btn" id="btn-close-loss">Cancel</button>
             <button type="submit" class="btn btn-danger">Deduct Loss</button>
           </div>
         </form>
@@ -594,7 +637,7 @@
           </table>
         </div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeAuditLogModal()">Close</button>
+          <button type="button" class="btn" id="btn-close-audit">Close</button>
         </div>
       </div>
     </div>
@@ -605,15 +648,15 @@
         <h2>📋 Physical Stock Take</h2>
         <div class="form-group">
           <label>Counting Location</label>
-          <select id="stocktake-location" onchange="renderStockTakeItems()">
+          <select id="stocktake-location">
             <option value="warehouse">Warehouse</option>
             <option value="shop">Shop Store</option>
           </select>
         </div>
         <div class="order-list" id="stocktake-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeStockTakeModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="saveStockTake()">Save Count</button>
+          <button type="button" class="btn" id="btn-close-stocktake">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btn-save-stocktake">Save Count</button>
         </div>
       </div>
     </div>
@@ -624,14 +667,14 @@
         <h2>⚡ Smart Purchase Order</h2>
         <div class="form-group">
           <label>Select Supplier</label>
-          <select id="order-supplier" onchange="renderOrderItems()">
+          <select id="order-supplier">
             <option value="">-- Choose Supplier --</option>
           </select>
         </div>
         <div class="order-list" id="order-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeOrderModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="exportOrder()">Export PO CSV</button>
+          <button type="button" class="btn" id="btn-close-order">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btn-export-order">Export PO CSV</button>
         </div>
       </div>
     </div>
@@ -640,7 +683,7 @@
     <div class="modal-overlay" id="modal">
       <div class="modal">
         <h2 id="modal-title">Add single item</h2>
-        <form id="item-form" onsubmit="saveItem(event)">
+        <form id="item-form">
           <input type="hidden" id="edit-id">
           <div class="form-row">
             <div class="form-group"><label>Item name</label><input type="text" id="f-name" required></div>
@@ -660,7 +703,7 @@
           </div>
           <div class="form-group"><label>Supplier</label><input type="text" id="f-supplier"></div>
           <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+            <button type="button" class="btn" id="btn-close-item-modal">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Item</button>
           </div>
         </form>
@@ -668,11 +711,18 @@
     </div>
   </div>
 
-  <!-- Firebase Scripts -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- Modernized Modular Firebase SDK Scripts -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getDatabase, 
+      ref, 
+      onValue, 
+      update, 
+      remove, 
+      runTransaction 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBG5rH4tdgX9vA1bSfxUfeG0YT_Vf78SEo",
       authDomain: "inventory-tracker-8ba26.firebaseapp.com",
@@ -683,15 +733,16 @@
       appId: "1:283281271142:web:34d150e2f14bbaf18c40a7"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
     let items = [];
     let auditLogs = [];
     let sortCol = 'name';
     let sortDir = 'asc';
 
-    db.ref('.info/connected').on('value', (snap) => {
+    // Cloud connection state
+    onValue(ref(db, '.info/connected'), (snap) => {
       const dot = document.getElementById('sync-dot');
       const label = document.getElementById('sync-label');
       if (snap.val() === true) {
@@ -703,44 +754,33 @@
       }
     });
 
-    db.ref('items').on('value', (snapshot) => {
+    // Realtime listeners
+    onValue(ref(db, 'items'), (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
       render();
     });
 
-    db.ref('auditLogs').on('value', (snapshot) => {
+    onValue(ref(db, 'auditLogs'), (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).reverse() : [];
     });
 
-    function executeAiQuery() {
-      const inputEl = document.getElementById('ai-query-input');
-      const rawText = (inputEl.value || '').trim().toLowerCase();
-      if (!rawText) return;
+    function escapeHtml(t) {
+      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    }
 
-      const cleanQuery = rawText
-        .replace(/how many|types of|kinds of|do i have|list|show|count|my|items|products|all/gi, '')
-        .trim();
-
-      const searchKey = cleanQuery || rawText;
-      
-      const matches = items.filter(it => 
-        (it.name && it.name.toLowerCase().includes(searchKey)) ||
-        (it.category && it.category.toLowerCase().includes(searchKey)) ||
-        (it.model && it.model.toLowerCase().includes(searchKey))
-      );
-
-      document.getElementById('search').value = searchKey;
-      render();
-
-      if (matches.length === 0) {
-        alert(`No products matching "${searchKey}" were found in your inventory.`);
-      } else {
-        const details = matches.map(m => `• ${m.name} (${(parseFloat(m.whCartons)||0) + (parseFloat(m.shopCartons)||0)} Ctns)`).join('\n');
-        alert(`Found ${matches.length} matching type(s) for "${searchKey}":\n\n${details}`);
-      }
-      inputEl.value = '';
+    function logMovement(action, itemName, qty, route) {
+      const logId = Date.now();
+      const log = {
+        id: logId,
+        date: new Date().toLocaleDateString('en-GB'),
+        action: action,
+        itemName: itemName,
+        qty: qty,
+        route: route
+      };
+      update(ref(db, 'auditLogs/' + logId), log);
     }
 
     function render() {
@@ -792,11 +832,11 @@
               <td><span class="chip ${marginPct >= 0 ? 'chip-positive' : 'chip-danger'}">${marginPct.toFixed(1)}%</span></td>
               <td>
                 <div style="display:flex; gap:4px; flex-wrap:wrap;">
-                  <button class="btn btn-sm" onclick="openDispatchModal('${it.id}')">🚚 Supply</button>
-                  <button class="btn btn-sm" onclick="openTransferModal('${it.id}')">🔄 Transfer</button>
-                  <button class="btn btn-sm btn-danger" onclick="openLossModal('${it.id}')">🗑️ Loss</button>
-                  <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
-                  <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
+                  <button class="btn btn-sm btn-action-dispatch" data-id="${it.id}">🚚 Supply</button>
+                  <button class="btn btn-sm btn-action-transfer" data-id="${it.id}">🔄 Transfer</button>
+                  <button class="btn btn-sm btn-danger btn-action-loss" data-id="${it.id}">🗑️ Loss</button>
+                  <button class="btn btn-sm btn-action-edit" data-id="${it.id}">Edit</button>
+                  <button class="btn btn-sm btn-danger btn-action-delete" data-id="${it.id}">Delete</button>
                 </div>
               </td>
             </tr>
@@ -820,39 +860,276 @@
       render();
     }
 
-    function logMovement(action, itemName, qty, route) {
-      const log = {
-        id: Date.now(),
-        date: new Date().toLocaleDateString('en-GB'),
-        action: action,
-        itemName: itemName,
-        qty: qty,
-        route: route
+    function executeAiQuery() {
+      const inputEl = document.getElementById('ai-query-input');
+      const rawText = (inputEl.value || '').trim().toLowerCase();
+      if (!rawText) return;
+
+      const cleanQuery = rawText
+        .replace(/how many|types of|kinds of|do i have|list|show|count|my|items|products|all/gi, '')
+        .trim();
+
+      const searchKey = cleanQuery || rawText;
+      
+      const matches = items.filter(it => 
+        (it.name && it.name.toLowerCase().includes(searchKey)) ||
+        (it.category && it.category.toLowerCase().includes(searchKey)) ||
+        (it.model && it.model.toLowerCase().includes(searchKey))
+      );
+
+      document.getElementById('search').value = searchKey;
+      render();
+
+      if (matches.length === 0) {
+        alert(`No products matching "${searchKey}" were found in your inventory.`);
+      } else {
+        const details = matches.map(m => `• ${m.name} (${(parseFloat(m.whCartons)||0) + (parseFloat(m.shopCartons)||0)} Ctns)`).join('\n');
+        alert(`Found ${matches.length} matching type(s) for "${searchKey}":\n\n${details}`);
+      }
+      inputEl.value = '';
+    }
+
+    // Modal helpers
+    function openModalById(id) { document.getElementById(id).classList.add('open'); }
+    function closeModalById(id) { document.getElementById(id).classList.remove('open'); }
+
+    // Item Modal
+    function openModal(id) {
+      openModalById('modal');
+      document.getElementById('item-form').reset();
+      document.getElementById('edit-id').value = id || '';
+      if (id) {
+        const it = items.find(i => String(i.id) === String(id));
+        if (it) {
+          document.getElementById('f-name').value = it.name;
+          document.getElementById('f-model').value = it.model || '';
+          document.getElementById('f-sku').value = it.sku;
+          document.getElementById('f-category').value = it.category;
+          document.getElementById('f-qtyPerCarton').value = it.qtyPerCarton || 1;
+          document.getElementById('f-unit').value = it.unit || 'pcs';
+          document.getElementById('f-cost').value = it.cost || 0;
+          document.getElementById('f-price').value = it.price || 0;
+          document.getElementById('f-supplier').value = it.supplier || '';
+        }
+      }
+    }
+
+    function saveItem(e) {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value || (Date.now() + '');
+      const existing = items.find(i => String(i.id) === String(id));
+
+      const data = {
+        id: id,
+        name: document.getElementById('f-name').value.trim(),
+        model: document.getElementById('f-model').value.trim(),
+        sku: document.getElementById('f-sku').value.trim(),
+        category: document.getElementById('f-category').value.trim(),
+        qtyPerCarton: parseInt(document.getElementById('f-qtyPerCarton').value) || 1,
+        unit: document.getElementById('f-unit').value.trim(),
+        cost: parseFloat(document.getElementById('f-cost').value) || 0,
+        price: parseFloat(document.getElementById('f-price').value) || 0,
+        supplier: document.getElementById('f-supplier').value.trim(),
+        whCartons: existing ? (existing.whCartons || 0) : 0,
+        shopCartons: existing ? (existing.shopCartons || 0) : 0
       };
-      db.ref('auditLogs/' + log.id).set(log);
+
+      update(ref(db, 'items/' + id), data);
+      closeModalById('modal');
     }
 
-    function openAiForecastModal() {
-      document.getElementById('ai-forecast-modal').classList.add('open');
-      const tbody = document.getElementById('ai-forecast-tbody');
-      tbody.innerHTML = items.map(it => {
-        const totalStock = (parseFloat(it.whCartons)||0) + (parseFloat(it.shopCartons)||0);
-        return `
-          <tr>
-            <td style="padding:8px;"><strong>${escapeHtml(it.name)}</strong></td>
-            <td style="padding:8px;">${totalStock} ctns</td>
-            <td style="padding:8px;">-</td>
-            <td style="padding:8px;">-</td>
-            <td style="padding:8px;"><span style="color:var(--positive);">Stable</span></td>
-            <td style="padding:8px; font-weight:600;">${it.min || 2} ctns</td>
-          </tr>
-        `;
-      }).join('');
+    function deleteItem(id) {
+      if (confirm('Delete this item?')) remove(ref(db, 'items/' + id));
     }
-    function closeAiForecastModal() { document.getElementById('ai-forecast-modal').classList.remove('open'); }
 
+    // ATOMIC TRANSACTION: Dispatch / Supply
+    function openDispatchModal(id) {
+      document.getElementById('dispatch-id').value = id;
+      document.getElementById('dispatch-input-val').value = '';
+      document.getElementById('dispatch-client').value = '';
+      
+      const item = items.find(i => String(i.id) === String(id));
+      if (item) {
+        document.getElementById('dispatch-unit-price').value = item.price || 0;
+      }
+      
+      updateDispatchInfo();
+      calculateDispatchTotals();
+      openModalById('dispatch-modal');
+    }
+
+    function updateDispatchInfo() {
+      const id = document.getElementById('dispatch-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+
+      const wh = parseFloat(item.whCartons) || 0;
+      const shop = parseFloat(item.shopCartons) || 0;
+      const ctnQty = parseInt(item.qtyPerCarton) || 1;
+
+      document.getElementById('dispatch-info').innerHTML = `
+        Product: <strong>${escapeHtml(item.name)}</strong> (${escapeHtml(item.sku)})<br>
+        Packaging: <strong>${ctnQty} ${escapeHtml(item.unit || 'pcs')}/carton</strong><br>
+        Available Stock: <strong>Warehouse: ${wh} ctns (${(wh * ctnQty).toLocaleString()} pcs) | Shop: ${shop} ctns (${(shop * ctnQty).toLocaleString()} pcs)</strong>
+      `;
+    }
+
+    function calculateDispatchTotals() {
+      const id = document.getElementById('dispatch-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+
+      const mode = document.getElementById('dispatch-mode').value;
+      const qtyInput = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
+      const unitPrice = parseFloat(document.getElementById('dispatch-unit-price').value) || 0;
+      const ctnQty = parseInt(item.qtyPerCarton) || 1;
+
+      document.getElementById('dispatch-qty-label').textContent = mode === 'cartons' ? 'Cartons Dispatched' : `Loose ${item.unit || 'pcs'} Dispatched`;
+
+      let totalPieces = mode === 'cartons' ? (qtyInput * ctnQty) : qtyInput;
+      let totalValue = totalPieces * unitPrice;
+
+      document.getElementById('dispatch-calc-units').textContent = `${totalPieces.toLocaleString()} ${item.unit || 'pcs'}`;
+      document.getElementById('dispatch-calc-total').textContent = `KSh ${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+
+    function processDispatch(e) {
+      e.preventDefault();
+      const id = document.getElementById('dispatch-id').value;
+      const rawQty = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
+      const src = document.getElementById('dispatch-source').value;
+      const client = document.getElementById('dispatch-client').value.trim();
+      const mode = document.getElementById('dispatch-mode').value;
+      const unitPrice = parseFloat(document.getElementById('dispatch-unit-price').value) || 0;
+      const payStatus = document.getElementById('dispatch-payment-status').value;
+      
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item || rawQty <= 0) return;
+
+      const ctnQty = parseInt(item.qtyPerCarton) || 1;
+      const cartonsDeducted = mode === 'cartons' ? rawQty : (rawQty / ctnQty);
+      const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
+
+      const itemRef = ref(db, 'items/' + id + '/' + locKey);
+
+      runTransaction(itemRef, (currentStock) => {
+        const current = parseFloat(currentStock) || 0;
+        if (cartonsDeducted > current) {
+          return; // Abort transaction if insufficient
+        }
+        return Math.max(0, current - cartonsDeducted);
+      }).then((result) => {
+        if (result.committed) {
+          const totalPieces = mode === 'cartons' ? (rawQty * ctnQty) : rawQty;
+          const totalVal = totalPieces * unitPrice;
+          
+          logMovement(
+            'SUPPLY_CLIENT', 
+            item.name, 
+            `${cartonsDeducted.toFixed(2)} Ctns (${totalPieces} ${item.unit || 'pcs'})`, 
+            `${src.toUpperCase()} ➔ ${client} [${payStatus} - KSh ${totalVal.toLocaleString()}]`
+          );
+
+          closeModalById('dispatch-modal');
+          alert(`Successfully supplied ${totalPieces} ${item.unit || 'pcs'} to ${client}!`);
+        } else {
+          alert(`Transaction failed: Insufficient stock in ${src.toUpperCase()}.`);
+        }
+      });
+    }
+
+    // ATOMIC TRANSACTION: Stock Transfer
+    function openTransferModal(id) {
+      document.getElementById('transfer-id').value = id;
+      document.getElementById('transfer-input-val').value = '';
+      updateTransferInfo();
+      openModalById('transfer-modal');
+    }
+
+    function updateTransferInfo() {
+      const id = document.getElementById('transfer-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+      document.getElementById('transfer-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons||0} ctns | Shop: ${item.shopCartons||0} ctns`;
+    }
+
+    function processTransfer(e) {
+      e.preventDefault();
+      const id = document.getElementById('transfer-id').value;
+      const val = parseFloat(document.getElementById('transfer-input-val').value) || 0;
+      const route = document.getElementById('transfer-route').value;
+      const item = items.find(i => String(i.id) === String(id));
+
+      if (!item || val <= 0) return;
+
+      const itemRef = ref(db, 'items/' + id);
+
+      runTransaction(itemRef, (currentData) => {
+        if (!currentData) return currentData;
+        let wh = parseFloat(currentData.whCartons) || 0;
+        let shop = parseFloat(currentData.shopCartons) || 0;
+
+        if (route === 'wh_to_shop') {
+          if (val > wh) return; // Abort if insufficient
+          currentData.whCartons = wh - val;
+          currentData.shopCartons = shop + val;
+        } else {
+          if (val > shop) return; // Abort if insufficient
+          currentData.shopCartons = shop - val;
+          currentData.whCartons = wh + val;
+        }
+        return currentData;
+      }).then((result) => {
+        if (result.committed) {
+          logMovement('TRANSFER', item.name, `${val} Cartons`, route === 'wh_to_shop' ? 'Warehouse ➔ Shop' : 'Shop ➔ Warehouse');
+          closeModalById('transfer-modal');
+        } else {
+          alert('Transfer failed: Insufficient source stock.');
+        }
+      });
+    }
+
+    // ATOMIC TRANSACTION: Loss / Damage
+    function openLossModal(id) {
+      document.getElementById('loss-id').value = id;
+      document.getElementById('loss-input-val').value = '';
+      updateLossInfo();
+      openModalById('loss-modal');
+    }
+
+    function updateLossInfo() {
+      const id = document.getElementById('loss-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+      document.getElementById('loss-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong>`;
+    }
+
+    function processLoss(e) {
+      e.preventDefault();
+      const id = document.getElementById('loss-id').value;
+      const val = parseFloat(document.getElementById('loss-input-val').value) || 0;
+      const src = document.getElementById('loss-source').value;
+      const item = items.find(i => String(i.id) === String(id));
+
+      if (!item || val <= 0) return;
+      const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
+      const itemRef = ref(db, 'items/' + id + '/' + locKey);
+
+      runTransaction(itemRef, (current) => {
+        const currentStock = parseFloat(current) || 0;
+        return Math.max(0, currentStock - val);
+      }).then((result) => {
+        if (result.committed) {
+          logMovement('DAMAGE_LOSS', item.name, `${val} Cartons`, `${src.toUpperCase()} Shrinkage`);
+          closeModalById('loss-modal');
+          alert('Recorded damage/loss.');
+        }
+      });
+    }
+
+    // Price List Generator
     function openPricelistModal() {
-      document.getElementById('pricelist-modal').classList.add('open');
+      openModalById('pricelist-modal');
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
 
@@ -864,7 +1141,6 @@
 
       renderPriceList();
     }
-    function closePricelistModal() { document.getElementById('pricelist-modal').classList.remove('open'); }
 
     function renderPriceList() {
       const supplier = document.getElementById('pl-supplier').value;
@@ -913,11 +1189,11 @@
       }).join('');
     }
 
+    // Category Manager
     function openCategoryManagerModal() {
-      document.getElementById('category-modal').classList.add('open');
+      openModalById('category-modal');
       renderCategoryManager();
     }
-    function closeCategoryManagerModal() { document.getElementById('category-modal').classList.remove('open'); }
 
     function renderCategoryManager() {
       const list = document.getElementById('category-manager-list');
@@ -925,7 +1201,7 @@
       list.innerHTML = categories.map(cat => `
         <div class="order-item">
           <div class="order-item-info"><div class="order-item-name">📁 ${escapeHtml(cat)}</div></div>
-          <button class="btn btn-sm" onclick="renameCategory('${escapeHtml(cat)}')">✏️ Rename</button>
+          <button class="btn btn-sm btn-rename-cat" data-cat="${escapeHtml(cat)}">✏️ Rename</button>
         </div>
       `).join('');
     }
@@ -935,15 +1211,15 @@
       if (!newCat || newCat.trim() === '') return;
       const updates = {};
       items.forEach(it => { if ((it.category||'General') === oldCat) updates['/items/' + it.id + '/category'] = newCat.trim(); });
-      db.ref().update(updates);
-      closeCategoryManagerModal();
+      update(ref(db), updates);
+      closeModalById('category-modal');
     }
 
+    // Supplier Manager
     function openSupplierManagerModal() {
-      document.getElementById('supplier-modal').classList.add('open');
+      openModalById('supplier-modal');
       renderSupplierManager();
     }
-    function closeSupplierManagerModal() { document.getElementById('supplier-modal').classList.remove('open'); }
 
     function renderSupplierManager() {
       const list = document.getElementById('supplier-manager-list');
@@ -951,7 +1227,7 @@
       list.innerHTML = suppliers.map(sup => `
         <div class="order-item">
           <div class="order-item-info"><div class="order-item-name">🏭 ${escapeHtml(sup)}</div></div>
-          <button class="btn btn-sm" onclick="renameSupplier('${escapeHtml(sup)}')">✏️ Rename</button>
+          <button class="btn btn-sm btn-rename-sup" data-sup="${escapeHtml(sup)}">✏️ Rename</button>
         </div>
       `).join('');
     }
@@ -961,20 +1237,87 @@
       if (!newSup || newSup.trim() === '') return;
       const updates = {};
       items.forEach(it => { if (it.supplier === oldSup) updates['/items/' + it.id + '/supplier'] = newSup.trim(); });
-      db.ref().update(updates);
-      closeSupplierManagerModal();
+      update(ref(db), updates);
+      closeModalById('supplier-modal');
     }
 
-    function triggerCsvImport() { alert('Select a CSV file to import.'); }
-    function handleCsvFile() { alert('CSV processed.'); }
+    // FULL CSV IMPORT ENGINE IMPLEMENTATION
+    function triggerCsvImport() { document.getElementById('csv-file-input').click(); }
+    
+    function handleCsvFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
 
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const text = evt.target.result;
+        const lines = text.split(/\r\n|\n/);
+        if (lines.length < 2) {
+          alert('CSV file appears empty or lacks standard data headers.');
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+        const updates = {};
+        let count = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          
+          // Regex to parse comma separated values while ignoring commas inside quotes
+          const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+          const cleanRow = row.map(cell => cell ? cell.trim().replace(/^"|"$/g, '') : '');
+
+          const getItemVal = (headerName) => {
+            const idx = headers.indexOf(headerName.toLowerCase());
+            return idx !== -1 ? cleanRow[idx] : '';
+          };
+
+          const sku = getItemVal('sku');
+          const name = getItemVal('name');
+
+          if (!sku && !name) continue;
+
+          // Check if item already exists by SKU or Name
+          let existing = items.find(it => (sku && it.sku === sku) || (name && it.name === name));
+          let id = existing ? existing.id : (Date.now() + i + '');
+
+          updates['/items/' + id] = {
+            id: id,
+            name: name || (existing ? existing.name : 'Unnamed Item'),
+            model: getItemVal('model') || (existing ? existing.model || '' : ''),
+            sku: sku || (existing ? existing.sku : 'SKU-' + id),
+            category: getItemVal('category') || (existing ? existing.category : 'General'),
+            qtyPerCarton: parseInt(getItemVal('qty per carton')) || (existing ? existing.qtyPerCarton : 1),
+            unit: getItemVal('unit') || (existing ? existing.unit : 'pcs'),
+            cost: parseFloat(getItemVal('unit cost')) || (existing ? existing.cost : 0),
+            price: parseFloat(getItemVal('unit price')) || (existing ? existing.price : 0),
+            supplier: getItemVal('supplier') || (existing ? existing.supplier : ''),
+            whCartons: parseFloat(getItemVal('warehouse cartons')) || (existing ? existing.whCartons : 0),
+            shopCartons: parseFloat(getItemVal('shop cartons')) || (existing ? existing.shopCartons : 0)
+          };
+          count++;
+        }
+
+        if (count > 0) {
+          update(ref(db), updates).then(() => {
+            alert(`Successfully imported/updated ${count} product(s) from CSV!`);
+          });
+        } else {
+          alert('No valid inventory rows were recognized in the selected CSV file.');
+        }
+        e.target.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    // Bulk Receive
     function openBulkReceiveModal() {
-      document.getElementById('bulk-receive-modal').classList.add('open');
+      openModalById('bulk-receive-modal');
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     }
-    function closeBulkReceiveModal() { document.getElementById('bulk-receive-modal').classList.remove('open'); }
 
     function renderBulkReceiveItems() {
       const supplier = document.getElementById('receive-supplier-select').value;
@@ -995,7 +1338,7 @@
       if (!supplier) return;
       
       const supplierItems = items.filter(i => i.supplier === supplier);
-      const updates = {};
+      const locKey = dest === 'warehouse' ? 'whCartons' : 'shopCartons';
       let count = 0;
 
       supplierItems.forEach(it => {
@@ -1004,132 +1347,24 @@
           const addVal = parseFloat(input.value) || 0;
           if (addVal > 0) {
             count++;
-            const locKey = dest === 'warehouse' ? 'whCartons' : 'shopCartons';
-            const newStock = (parseFloat(it[locKey]) || 0) + addVal;
-            updates['/items/' + it.id + '/' + locKey] = newStock;
+            const itemRef = ref(db, 'items/' + it.id + '/' + locKey);
+            runTransaction(itemRef, (curr) => (parseFloat(curr) || 0) + addVal);
             logMovement('RECEIVE', it.name, `${addVal} Cartons`, `Supplier ➔ ${dest.toUpperCase()}`);
           }
         }
       });
 
       if (count > 0) {
-        db.ref().update(updates).then(() => {
-          alert(`Received ${count} product(s) into ${dest.toUpperCase()}!`);
-          closeBulkReceiveModal();
-        });
+        alert(`Received ${count} product(s) into ${dest.toUpperCase()}!`);
+        closeModalById('bulk-receive-modal');
       } else {
         alert('Please enter quantities to receive.');
       }
     }
 
-    function openTransferModal(id) {
-      document.getElementById('transfer-id').value = id;
-      document.getElementById('transfer-input-val').value = '';
-      updateTransferInfo();
-      document.getElementById('transfer-modal').classList.add('open');
-    }
-    function closeTransferModal() { document.getElementById('transfer-modal').classList.remove('open'); }
-
-    function updateTransferInfo() {
-      const id = document.getElementById('transfer-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      document.getElementById('transfer-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons||0} ctns | Shop: ${item.shopCartons||0} ctns`;
-    }
-
-    function processTransfer(e) {
-      e.preventDefault();
-      const id = document.getElementById('transfer-id').value;
-      const val = parseFloat(document.getElementById('transfer-input-val').value) || 0;
-      const route = document.getElementById('transfer-route').value;
-      const item = items.find(i => String(i.id) === String(id));
-
-      if (!item || val <= 0) return;
-
-      if (route === 'wh_to_shop') {
-        if (val > (item.whCartons || 0)) { alert('Not enough warehouse stock.'); return; }
-        item.whCartons = (item.whCartons || 0) - val;
-        item.shopCartons = (item.shopCartons || 0) + val;
-      } else {
-        if (val > (item.shopCartons || 0)) { alert('Not enough shop stock.'); return; }
-        item.shopCartons = (item.shopCartons || 0) - val;
-        item.whCartons = (item.whCartons || 0) + val;
-      }
-
-      db.ref('items/' + item.id).update({ whCartons: item.whCartons, shopCartons: item.shopCartons });
-      logMovement('TRANSFER', item.name, `${val} Cartons`, route === 'wh_to_shop' ? 'Warehouse ➔ Shop' : 'Shop ➔ Warehouse');
-      closeTransferModal();
-    }
-
-    function openDispatchModal(id) {
-      document.getElementById('dispatch-id').value = id;
-      document.getElementById('dispatch-input-val').value = '';
-      document.getElementById('dispatch-client').value = '';
-      updateDispatchInfo();
-      document.getElementById('dispatch-modal').classList.add('open');
-    }
-    function closeDispatchModal() { document.getElementById('dispatch-modal').classList.remove('open'); }
-
-    function updateDispatchInfo() {
-      const id = document.getElementById('dispatch-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      document.getElementById('dispatch-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons||0} ctns | Shop: ${item.shopCartons||0} ctns`;
-    }
-
-    function processDispatch(e) {
-      e.preventDefault();
-      const id = document.getElementById('dispatch-id').value;
-      const val = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
-      const src = document.getElementById('dispatch-source').value;
-      const client = document.getElementById('dispatch-client').value;
-      const item = items.find(i => String(i.id) === String(id));
-
-      if (!item || val <= 0) return;
-      const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
-      if (val > (item[locKey] || 0)) { alert('Insufficient stock.'); return; }
-
-      item[locKey] = (item[locKey] || 0) - val;
-      db.ref('items/' + item.id + '/' + locKey).set(item[locKey]);
-      logMovement('SUPPLY_CLIENT', item.name, `${val} Cartons`, `${src.toUpperCase()} ➔ ${client}`);
-      closeDispatchModal();
-      alert(`Dispatched ${val} cartons to ${client}!`);
-    }
-
-    function openLossModal(id) {
-      document.getElementById('loss-id').value = id;
-      document.getElementById('loss-input-val').value = '';
-      updateLossInfo();
-      document.getElementById('loss-modal').classList.add('open');
-    }
-    function closeLossModal() { document.getElementById('loss-modal').classList.remove('open'); }
-
-    function updateLossInfo() {
-      const id = document.getElementById('loss-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      document.getElementById('loss-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong>`;
-    }
-
-    function processLoss(e) {
-      e.preventDefault();
-      const id = document.getElementById('loss-id').value;
-      const val = parseFloat(document.getElementById('loss-input-val').value) || 0;
-      const src = document.getElementById('loss-source').value;
-      const item = items.find(i => String(i.id) === String(id));
-
-      if (!item || val <= 0) return;
-      const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
-      item[locKey] = Math.max(0, (item[locKey] || 0) - val);
-
-      db.ref('items/' + item.id + '/' + locKey).set(item[locKey]);
-      logMovement('DAMAGE_LOSS', item.name, `${val} Cartons`, `${src.toUpperCase()} Shrinkage`);
-      closeLossModal();
-      alert(`Recorded damage/loss.`);
-    }
-
+    // Audit Log
     function openAuditLogModal() {
-      document.getElementById('audit-modal').classList.add('open');
+      openModalById('audit-modal');
       const tbody = document.getElementById('audit-log-tbody');
       tbody.innerHTML = auditLogs.map(l => `
         <tr style="border-bottom:1px solid var(--border-divider);">
@@ -1141,13 +1376,12 @@
         </tr>
       `).join('');
     }
-    function closeAuditLogModal() { document.getElementById('audit-modal').classList.remove('open'); }
 
+    // Stock Take
     function openStockTakeModal() {
-      document.getElementById('stocktake-modal').classList.add('open');
+      openModalById('stocktake-modal');
       renderStockTakeItems();
     }
-    function closeStockTakeModal() { document.getElementById('stocktake-modal').classList.remove('open'); }
 
     function renderStockTakeItems() {
       const loc = document.getElementById('stocktake-location').value;
@@ -1176,19 +1410,19 @@
         }
       });
 
-      db.ref().update(updates).then(() => {
+      update(ref(db), updates).then(() => {
         alert('Stock take counts saved!');
-        closeStockTakeModal();
+        closeModalById('stocktake-modal');
       });
     }
 
+    // Smart PO Order
     function openOrderModal() {
-      document.getElementById('order-modal').classList.add('open');
+      openModalById('order-modal');
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
       document.getElementById('order-supplier').innerHTML = '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
     }
-    function closeOrderModal() { document.getElementById('order-modal').classList.remove('open'); }
 
     function renderOrderItems() {
       const supplier = document.getElementById('order-supplier').value;
@@ -1205,62 +1439,26 @@
 
     function exportOrder() {
       alert('Exported Purchase Order CSV.');
-      closeOrderModal();
+      closeModalById('order-modal');
     }
 
-    function openModal(id) {
-      document.getElementById('modal').classList.add('open');
-      document.getElementById('item-form').reset();
-      document.getElementById('edit-id').value = id || '';
-      if (id) {
-        const it = items.find(i => String(i.id) === String(id));
-        if (it) {
-          document.getElementById('f-name').value = it.name;
-          document.getElementById('f-model').value = it.model || '';
-          document.getElementById('f-sku').value = it.sku;
-          document.getElementById('f-category').value = it.category;
-          document.getElementById('f-qtyPerCarton').value = it.qtyPerCarton || 1;
-          document.getElementById('f-unit').value = it.unit || 'pcs';
-          document.getElementById('f-cost').value = it.cost || 0;
-          document.getElementById('f-price').value = it.price || 0;
-          document.getElementById('f-supplier').value = it.supplier || '';
-        }
-      }
-    }
-
-    function closeModal() { document.getElementById('modal').classList.remove('open'); }
-
-    function saveItem(e) {
-      e.preventDefault();
-      const id = document.getElementById('edit-id').value || (Date.now() + '');
-      const existing = items.find(i => String(i.id) === String(id));
-
-      const data = {
-        id: id,
-        name: document.getElementById('f-name').value.trim(),
-        model: document.getElementById('f-model').value.trim(),
-        sku: document.getElementById('f-sku').value.trim(),
-        category: document.getElementById('f-category').value.trim(),
-        qtyPerCarton: parseInt(document.getElementById('f-qtyPerCarton').value) || 1,
-        unit: document.getElementById('f-unit').value.trim(),
-        cost: parseFloat(document.getElementById('f-cost').value) || 0,
-        price: parseFloat(document.getElementById('f-price').value) || 0,
-        supplier: document.getElementById('f-supplier').value.trim(),
-        whCartons: existing ? (existing.whCartons || 0) : 0,
-        shopCartons: existing ? (existing.shopCartons || 0) : 0
-      };
-
-      db.ref('items/' + id).update(data);
-      closeModal();
-    }
-
-    function editItem(id) { openModal(id); }
-    function deleteItem(id) {
-      if (confirm('Delete this item?')) db.ref('items/' + id).remove();
-    }
-
-    function escapeHtml(t) {
-      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    // AI Forecast
+    function openAiForecastModal() {
+      openModalById('ai-forecast-modal');
+      const tbody = document.getElementById('ai-forecast-tbody');
+      tbody.innerHTML = items.map(it => {
+        const totalStock = (parseFloat(it.whCartons)||0) + (parseFloat(it.shopCartons)||0);
+        return `
+          <tr>
+            <td style="padding:8px;"><strong>${escapeHtml(it.name)}</strong></td>
+            <td style="padding:8px;">${totalStock} ctns</td>
+            <td style="padding:8px;">-</td>
+            <td style="padding:8px;">-</td>
+            <td style="padding:8px;"><span style="color:var(--positive);">Stable</span></td>
+            <td style="padding:8px; font-weight:600;">${it.min || 2} ctns</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function exportCSV() {
@@ -1272,18 +1470,106 @@
       const a = document.createElement('a'); a.href = url; a.download = 'inventory_export.csv'; a.click();
     }
 
-    document.getElementById('ai-forecast-modal').addEventListener('click', e => { if (e.target === document.getElementById('ai-forecast-modal')) closeAiForecastModal(); });
-    document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
-    document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
-    document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
-    document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
-    document.getElementById('transfer-modal').addEventListener('click', e => { if (e.target === document.getElementById('transfer-modal')) closeTransferModal(); });
-    document.getElementById('dispatch-modal').addEventListener('click', e => { if (e.target === document.getElementById('dispatch-modal')) closeDispatchModal(); });
-    document.getElementById('loss-modal').addEventListener('click', e => { if (e.target === document.getElementById('loss-modal')) closeLossModal(); });
-    document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
-    document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
-    document.getElementById('order-modal').addEventListener('click', e => { if (e.target === document.getElementById('order-modal')) closeOrderModal(); });
-    document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+    // EVENT LISTENERS BINDING
+    document.addEventListener('DOMContentLoaded', () => {
+      // Header & Toolbar buttons
+      document.getElementById('btn-add-item').addEventListener('click', () => openModal());
+      document.getElementById('btn-ai-forecast').addEventListener('click', openAiForecastModal);
+      document.getElementById('btn-bulk-receive').addEventListener('click', openBulkReceiveModal);
+      document.getElementById('btn-manage-categories').addEventListener('click', openCategoryManagerModal);
+      document.getElementById('btn-manage-suppliers').addEventListener('click', openSupplierManagerModal);
+      document.getElementById('btn-price-lists').addEventListener('click', openPricelistModal);
+      document.getElementById('btn-import-csv').addEventListener('click', triggerCsvImport);
+      document.getElementById('csv-file-input').addEventListener('change', handleCsvFile);
+      document.getElementById('btn-audit-logs').addEventListener('click', openAuditLogModal);
+      document.getElementById('btn-stock-take').addEventListener('click', openStockTakeModal);
+      document.getElementById('btn-smart-po').addEventListener('click', openOrderModal);
+      document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+      document.getElementById('btn-ai-search').addEventListener('click', executeAiQuery);
+      document.getElementById('ai-query-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') executeAiQuery(); });
+      document.getElementById('search').addEventListener('input', render);
+      document.getElementById('filter-low-stock').addEventListener('change', render);
+
+      // Table headers sort
+      document.getElementById('th-name').addEventListener('click', () => sortBy('name'));
+      document.getElementById('th-category').addEventListener('click', () => sortBy('category'));
+      document.getElementById('th-cost').addEventListener('click', () => sortBy('cost'));
+      document.getElementById('th-price').addEventListener('click', () => sortBy('price'));
+
+      // Table action buttons delegation
+      document.getElementById('tbody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const id = btn.getAttribute('data-id');
+        if (btn.classList.contains('btn-action-dispatch')) openDispatchModal(id);
+        else if (btn.classList.contains('btn-action-transfer')) openTransferModal(id);
+        else if (btn.classList.contains('btn-action-loss')) openLossModal(id);
+        else if (btn.classList.contains('btn-action-edit')) openModal(id);
+        else if (btn.classList.contains('btn-action-delete')) deleteItem(id);
+      });
+
+      // Price list controls
+      document.getElementById('pl-supplier').addEventListener('change', renderPriceList);
+      document.getElementById('pl-category').addEventListener('change', renderPriceList);
+      document.getElementById('pl-type').addEventListener('change', renderPriceList);
+
+      // Bulk Receive controls
+      document.getElementById('receive-supplier-select').addEventListener('change', renderBulkReceiveItems);
+      document.getElementById('btn-process-bulk-receive').addEventListener('click', processBulkReceive);
+
+      // Transfer & Dispatch inputs
+      document.getElementById('transfer-route').addEventListener('change', updateTransferInfo);
+      document.getElementById('transfer-form').addEventListener('submit', processTransfer);
+      document.getElementById('dispatch-source').addEventListener('change', updateDispatchInfo);
+      document.getElementById('dispatch-mode').addEventListener('change', calculateDispatchTotals);
+      document.getElementById('dispatch-input-val').addEventListener('input', calculateDispatchTotals);
+      document.getElementById('dispatch-unit-price').addEventListener('input', calculateDispatchTotals);
+      document.getElementById('dispatch-form').addEventListener('submit', processDispatch);
+
+      // Loss form
+      document.getElementById('loss-form').addEventListener('submit', processLoss);
+
+      // Stock take controls
+      document.getElementById('stocktake-location').addEventListener('change', renderStockTakeItems);
+      document.getElementById('btn-save-stocktake').addEventListener('click', saveStockTake);
+
+      // Smart PO controls
+      document.getElementById('order-supplier').addEventListener('change', renderOrderItems);
+      document.getElementById('btn-export-order').addEventListener('click', exportOrder);
+
+      // Category & Supplier renaming delegation
+      document.getElementById('category-manager-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-rename-cat');
+        if (btn) renameCategory(btn.getAttribute('data-cat'));
+      });
+      document.getElementById('supplier-manager-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-rename-sup');
+        if (btn) renameSupplier(btn.getAttribute('data-sup'));
+      });
+
+      // Close modal buttons
+      document.getElementById('btn-close-ai-forecast').addEventListener('click', () => closeModalById('ai-forecast-modal'));
+      document.getElementById('btn-close-pricelist').addEventListener('click', () => closeModalById('pricelist-modal'));
+      document.getElementById('btn-close-category').addEventListener('click', () => closeModalById('category-modal'));
+      document.getElementById('btn-close-supplier').addEventListener('click', () => closeModalById('supplier-modal'));
+      document.getElementById('btn-close-bulk-receive').addEventListener('click', () => closeModalById('bulk-receive-modal'));
+      document.getElementById('btn-close-transfer').addEventListener('click', () => closeModalById('transfer-modal'));
+      document.getElementById('btn-close-dispatch').addEventListener('click', () => closeModalById('dispatch-modal'));
+      document.getElementById('btn-close-loss').addEventListener('click', () => closeModalById('loss-modal'));
+      document.getElementById('btn-close-audit').addEventListener('click', () => closeModalById('audit-modal'));
+      document.getElementById('btn-close-stocktake').addEventListener('click', () => closeModalById('stocktake-modal'));
+      document.getElementById('btn-close-order').addEventListener('click', () => closeModalById('order-modal'));
+      document.getElementById('btn-close-item-modal').addEventListener('click', () => closeModalById('modal'));
+      document.getElementById('item-form').addEventListener('submit', saveItem);
+
+      // Modal background click to close
+      const modalOverlays = document.querySelectorAll('.modal-overlay');
+      modalOverlays.forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) closeModalById(overlay.id);
+        });
+      });
+    });
   </script>
 </body>
 </html>
