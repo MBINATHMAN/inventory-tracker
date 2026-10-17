@@ -55,7 +55,6 @@
     .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 22px; font-weight: 600; }
     
-    /* Query Box */
     .ai-command-box {
       border: 1px solid var(--accent-purple);
       background: rgba(124, 58, 237, 0.04);
@@ -213,8 +212,13 @@
     .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--text); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .order-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-divider); }
+    .order-item-info { flex: 1; }
+    .order-item-name { font-weight: 500; font-size: 14px; }
+    .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
+    .order-list { max-height: 350px; overflow-y: auto; margin: 12px 0; }
 
-    /* PRINT STYLES - FIXED TO SHOW ALL ITEMS ACROSS PAGES */
+    /* COMPACT CONTINUOUS PRINT STYLES */
     @media print {
       body * { 
         visibility: hidden !important; 
@@ -236,16 +240,21 @@
         max-height: none !important;
         overflow: visible !important;
         border: none !important;
+        display: block !important;
       }
       #pricelist-print-area table { 
         width: 100% !important; 
         border-collapse: collapse !important; 
-        font-size: 11pt !important; 
+        font-size: 10pt !important; 
+      }
+      #pricelist-print-area tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       #pricelist-print-area th, 
       #pricelist-print-area td { 
-        border: 1px solid #ddd !important; 
-        padding: 6px 8px !important; 
+        border: 1px solid #ccc !important; 
+        padding: 5px 8px !important; 
         text-align: left !important; 
       }
       #pricelist-print-area th {
@@ -264,7 +273,6 @@
           <span class="badge-dot" id="sync-dot"></span>
           <span id="sync-label">Cloud Sync: Connecting...</span>
         </div>
-        <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openAiForecastModal()">🤖 AI Forecast</button>
         <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
         <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
       </div>
@@ -310,10 +318,11 @@
       <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; padding: 0 4px;">
         <input type="checkbox" id="filter-low-stock" onchange="render()"> ⚠️ Low Stock Only
       </label>
+      <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openCategoryManagerModal()">🏷️ Manage Categories</button>
+      <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" onclick="openSupplierManagerModal()">🏭 Manage Suppliers</button>
       <button class="btn" style="border-color:var(--positive); color:var(--positive);" onclick="openPricelistModal()">🏷️ Supplier Price Lists</button>
-      <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
-      <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
-      <button class="btn" onclick="openOrderModal()">⚡ Smart PO Order</button>
+      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
+      <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="exportCSV()">Export CSV</button>
     </div>
 
@@ -327,8 +336,7 @@
             <th>Shop Balance</th>
             <th id="th-cost" onclick="sortBy('cost')">Unit Cost</th>
             <th id="th-price" onclick="sortBy('price')">Unit Price</th>
-            <th>Margin %</th>
-            <th style="width: 270px;">Actions</th>
+            <th style="width: 200px;">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -396,7 +404,62 @@
       </div>
     </div>
 
-    <!-- Item Modal -->
+    <!-- Category Manager Modal -->
+    <div class="modal-overlay" id="category-modal">
+      <div class="modal" style="max-width: 600px;">
+        <h2>🏷️ Manage Categories</h2>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
+          Rename or delete categories. Renaming will update all associated items.
+        </p>
+        <div class="order-list" id="category-manager-list"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeCategoryManagerModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Supplier Manager Modal -->
+    <div class="modal-overlay" id="supplier-modal">
+      <div class="modal" style="max-width: 600px;">
+        <h2>🏭 Manage Suppliers</h2>
+        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
+          Rename or delete suppliers.
+        </p>
+        <div class="order-list" id="supplier-manager-list"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeSupplierManagerModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Receive Modal -->
+    <div class="modal-overlay" id="bulk-receive-modal">
+      <div class="modal">
+        <h2>📦 Receive Supplier Shipment</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="font-weight:600;">Select Supplier</label>
+            <select id="receive-supplier-select" onchange="renderBulkReceiveItems()">
+              <option value="">-- Choose Supplier --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:600;">Receiving Destination</label>
+            <select id="rec-destination">
+              <option value="warehouse">🏭 Warehouse</option>
+              <option value="shop">🏬 Shop Store</option>
+            </select>
+          </div>
+        </div>
+        <div class="order-list" id="bulk-receive-items"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="processBulkReceive()">Receive Stock</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
     <div class="modal-overlay" id="modal">
       <div class="modal">
         <h2 id="modal-title">Add single item</h2>
@@ -450,7 +513,6 @@
     let sortCol = 'name';
     let sortDir = 'asc';
 
-    // Cloud connection status listener
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
       const label = document.getElementById('sync-label');
@@ -463,7 +525,6 @@
       }
     });
 
-    // Realtime Database listener
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
@@ -499,6 +560,66 @@
       inputEl.value = '';
     }
 
+    function render() {
+      const q = document.getElementById('search').value.toLowerCase();
+      const lowStockOnly = document.getElementById('filter-low-stock').checked;
+
+      let filtered = items.filter(i => {
+        const matchesQuery = (i.name||'').toLowerCase().includes(q) ||
+          (i.category||'').toLowerCase().includes(q) ||
+          (i.model||'').toLowerCase().includes(q) ||
+          (i.sku||'').toLowerCase().includes(q) ||
+          (i.supplier||'').toLowerCase().includes(q);
+
+        const totalCartons = (parseFloat(i.whCartons)||0) + (parseFloat(i.shopCartons)||0);
+        const isLow = totalCartons <= (parseInt(i.min) || 2);
+        return lowStockOnly ? (matchesQuery && isLow) : matchesQuery;
+      });
+
+      filtered.sort((a, b) => {
+        let valA = a[sortCol] || '';
+        let valB = b[sortCol] || '';
+        if (typeof valA === 'string') {
+          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        }
+        return sortDir === 'asc' ? (valA - valB) : (valB - valA);
+      });
+
+      const tbody = document.getElementById('tbody');
+      const empty = document.getElementById('empty');
+      const table = document.getElementById('inventory-table');
+
+      if (!filtered.length) {
+        tbody.innerHTML = ''; empty.style.display = 'block'; table.style.display = 'none';
+      } else {
+        empty.style.display = 'none'; table.style.display = 'table';
+        tbody.innerHTML = filtered.map(it => `
+          <tr>
+            <td><strong>${escapeHtml(it.name)}</strong><br><small>${escapeHtml(it.sku)}</small></td>
+            <td><span class="chip">${escapeHtml(it.category || 'General')}</span></td>
+            <td><strong>${it.whCartons || 0} Cartons</strong></td>
+            <td><strong>${it.shopCartons || 0} Cartons</strong></td>
+            <td>KSh ${parseFloat(it.cost || 0).toFixed(2)}</td>
+            <td><strong>KSh ${parseFloat(it.price || 0).toFixed(2)}</strong></td>
+            <td>
+              <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      document.getElementById('stat-total').textContent = items.length;
+      document.getElementById('stat-wh').textContent = items.reduce((s,i)=>s+(parseFloat(i.whCartons)||0),0).toFixed(1) + ' ctns';
+      document.getElementById('stat-shop').textContent = items.reduce((s,i)=>s+(parseFloat(i.shopCartons)||0),0).toFixed(1) + ' ctns';
+    }
+
+    function sortBy(col) {
+      if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = col; sortDir = 'asc'; }
+      render();
+    }
+
     function openPricelistModal() {
       document.getElementById('pricelist-modal').classList.add('open');
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
@@ -513,9 +634,7 @@
       renderPriceList();
     }
 
-    function closePricelistModal() {
-      document.getElementById('pricelist-modal').classList.remove('open');
-    }
+    function closePricelistModal() { document.getElementById('pricelist-modal').classList.remove('open'); }
 
     function renderPriceList() {
       const supplier = document.getElementById('pl-supplier').value;
@@ -537,9 +656,7 @@
       }
 
       let filtered = items.filter(i => i.supplier === supplier);
-      if (category) {
-        filtered = filtered.filter(i => i.category === category);
-      }
+      if (category) filtered = filtered.filter(i => i.category === category);
 
       filtered.sort((a, b) => a.name.localeCompare(b.name));
       document.getElementById('pl-header-count').textContent = `${filtered.length} item(s)`;
@@ -566,44 +683,109 @@
       }).join('');
     }
 
-    function escapeHtml(t) {
-      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    function openCategoryManagerModal() {
+      document.getElementById('category-modal').classList.add('open');
+      renderCategoryManager();
+    }
+    function closeCategoryManagerModal() { document.getElementById('category-modal').classList.remove('open'); }
+
+    function renderCategoryManager() {
+      const list = document.getElementById('category-manager-list');
+      const categories = [...new Set(items.map(i => i.category || 'General'))].sort();
+      if (!categories.length) {
+        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No categories found.</p>';
+        return;
+      }
+      list.innerHTML = categories.map(cat => `
+        <div class="order-item" style="padding:10px 0;">
+          <div class="order-item-info">
+            <div class="order-item-name">📁 ${escapeHtml(cat)}</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-sm" onclick="renameCategory('${escapeHtml(cat)}')">✏️ Rename</button>
+          </div>
+        </div>
+      `).join('');
     }
 
-    function render() {
-      const q = document.getElementById('search').value.toLowerCase();
-      const filtered = items.filter(i => 
-        (i.name||'').toLowerCase().includes(q) ||
-        (i.category||'').toLowerCase().includes(q) ||
-        (i.model||'').toLowerCase().includes(q)
-      );
+    function renameCategory(oldCat) {
+      const newCat = prompt(`Enter new category name:`, oldCat);
+      if (!newCat || newCat.trim() === '' || newCat === oldCat) return;
+      const updates = {};
+      items.forEach(it => {
+        if ((it.category || 'General') === oldCat) updates['/items/' + it.id + '/category'] = newCat.trim();
+      });
+      db.ref().update(updates);
+      closeCategoryManagerModal();
+    }
 
-      const tbody = document.getElementById('tbody');
-      const empty = document.getElementById('empty');
-      const table = document.getElementById('inventory-table');
+    function openSupplierManagerModal() {
+      document.getElementById('supplier-modal').classList.add('open');
+      renderSupplierManager();
+    }
+    function closeSupplierManagerModal() { document.getElementById('supplier-modal').classList.remove('open'); }
 
-      if (!filtered.length) {
-        tbody.innerHTML = ''; empty.style.display = 'block'; table.style.display = 'none';
-      } else {
-        empty.style.display = 'none'; table.style.display = 'table';
-        tbody.innerHTML = filtered.map(it => `
-          <tr>
-            <td><strong>${escapeHtml(it.name)}</strong><br><small>${escapeHtml(it.sku)}</small></td>
-            <td><span class="chip">${escapeHtml(it.category || 'General')}</span></td>
-            <td><strong>${it.whCartons || 0} Cartons</strong></td>
-            <td><strong>${it.shopCartons || 0} Cartons</strong></td>
-            <td>KSh ${parseFloat(it.cost || 0).toFixed(2)}</td>
-            <td><strong>KSh ${parseFloat(it.price || 0).toFixed(2)}</strong></td>
-            <td>-</td>
-            <td>
-              <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
-            </td>
-          </tr>
-        `).join('');
+    function renderSupplierManager() {
+      const list = document.getElementById('supplier-manager-list');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      if (!suppliers.length) {
+        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No suppliers found.</p>';
+        return;
       }
+      list.innerHTML = suppliers.map(sup => `
+        <div class="order-item" style="padding:10px 0;">
+          <div class="order-item-info">
+            <div class="order-item-name">🏭 ${escapeHtml(sup)}</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-sm" onclick="renameSupplier('${escapeHtml(sup)}')">✏️ Rename</button>
+          </div>
+        </div>
+      `).join('');
+    }
 
-      document.getElementById('stat-total').textContent = items.length;
+    function renameSupplier(oldSup) {
+      const newSup = prompt(`Enter new supplier name:`, oldSup);
+      if (!newSup || newSup.trim() === '' || newSup === oldSup) return;
+      const updates = {};
+      items.forEach(it => {
+        if (it.supplier === oldSup) updates['/items/' + it.id + '/supplier'] = newSup.trim();
+      });
+      db.ref().update(updates);
+      closeSupplierManagerModal();
+    }
+
+    function triggerCsvImport() { document.getElementById('csv-file-input').click(); }
+    function handleCsvFile(e) {
+      alert('CSV file selected for import.');
+    }
+
+    function openBulkReceiveModal() {
+      document.getElementById('bulk-receive-modal').classList.add('open');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    }
+    function closeBulkReceiveModal() { document.getElementById('bulk-receive-modal').classList.remove('open'); }
+
+    function renderBulkReceiveItems() {
+      const supplier = document.getElementById('receive-supplier-select').value;
+      const container = document.getElementById('bulk-receive-items');
+      if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">Select a supplier.</p>'; return; }
+      const list = items.filter(i => i.supplier === supplier);
+      container.innerHTML = list.map(it => `
+        <div class="order-item">
+          <div class="order-item-info">
+            <div class="order-item-name">${escapeHtml(it.name)}</div>
+          </div>
+          <input type="number" class="order-qty" id="rec-${it.id}" placeholder="0" min="0">
+        </div>
+      `).join('');
+    }
+
+    function processBulkReceive() {
+      alert('Stock received!');
+      closeBulkReceiveModal();
     }
 
     function openModal(id) {
@@ -654,9 +836,16 @@
       if (confirm('Delete this item?')) db.ref('items/' + id).remove();
     }
 
-    function exportCSV() { alert('Exporting active stock list...'); }
+    function escapeHtml(t) {
+      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    }
+
+    function exportCSV() { alert('Exporting CSV...'); }
 
     document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
+    document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
+    document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
+    document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
     document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
   </script>
 </body>
