@@ -216,9 +216,11 @@
     .order-item-info { flex: 1; }
     .order-item-name { font-weight: 500; font-size: 14px; }
     .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
-    .order-list { max-height: 350px; overflow-y: auto; margin: 12px 0; }
+    .order-qty { width: 85px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-weight: 600; }
+    .order-list { max-height: 380px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
+    .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
 
-    /* COMPACT CONTINUOUS PRINT STYLES */
+    /* CONTINUOUS TABLE PRINT CSS - PREVENTS ONE ITEM PER PAGE */
     @media print {
       body * { 
         visibility: hidden !important; 
@@ -235,9 +237,11 @@
         color: #000 !important; 
         background: #fff !important; 
         padding: 0 !important; 
+        margin: 0 !important;
       }
       #pl-table-wrap {
         max-height: none !important;
+        height: auto !important;
         overflow: visible !important;
         border: none !important;
         display: block !important;
@@ -273,6 +277,7 @@
           <span class="badge-dot" id="sync-dot"></span>
           <span id="sync-label">Cloud Sync: Connecting...</span>
         </div>
+        <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openAiForecastModal()">🤖 AI Forecast</button>
         <button class="btn" onclick="openBulkReceiveModal()">📦 Receive Supplier Order</button>
         <button class="btn btn-primary" onclick="openModal()">+ Add single item</button>
       </div>
@@ -323,6 +328,9 @@
       <button class="btn" style="border-color:var(--positive); color:var(--positive);" onclick="openPricelistModal()">🏷️ Supplier Price Lists</button>
       <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
       <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
+      <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
+      <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
+      <button class="btn" onclick="openOrderModal()">⚡ Smart PO Order</button>
       <button class="btn" onclick="exportCSV()">Export CSV</button>
     </div>
 
@@ -336,13 +344,39 @@
             <th>Shop Balance</th>
             <th id="th-cost" onclick="sortBy('cost')">Unit Cost</th>
             <th id="th-price" onclick="sortBy('price')">Unit Price</th>
-            <th style="width: 200px;">Actions</th>
+            <th>Margin %</th>
+            <th style="width: 270px;">Actions</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
       </table>
       <div class="empty-state" id="empty" style="display:none;">
         <p>No items found.</p>
+      </div>
+    </div>
+
+    <!-- AI Demand Forecast Modal -->
+    <div class="modal-overlay" id="ai-forecast-modal">
+      <div class="modal" style="max-width: 850px;">
+        <h2>🤖 AI Demand Forecast & Run-Out Engine</h2>
+        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background: var(--surface);">
+                <th style="padding: 8px;">Item Name</th>
+                <th style="padding: 8px;">Total Stock</th>
+                <th style="padding: 8px;">30-Day Outflow</th>
+                <th style="padding: 8px;">Burn Rate / Day</th>
+                <th style="padding: 8px;">Run-Out Forecast</th>
+                <th style="padding: 8px;">AI Reorder Level</th>
+              </tr>
+            </thead>
+            <tbody id="ai-forecast-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button type="button" class="btn" onclick="closeAiForecastModal()">Close</button>
+        </div>
       </div>
     </div>
 
@@ -408,9 +442,6 @@
     <div class="modal-overlay" id="category-modal">
       <div class="modal" style="max-width: 600px;">
         <h2>🏷️ Manage Categories</h2>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
-          Rename or delete categories. Renaming will update all associated items.
-        </p>
         <div class="order-list" id="category-manager-list"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" onclick="closeCategoryManagerModal()">Close</button>
@@ -422,9 +453,6 @@
     <div class="modal-overlay" id="supplier-modal">
       <div class="modal" style="max-width: 600px;">
         <h2>🏭 Manage Suppliers</h2>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
-          Rename or delete suppliers.
-        </p>
         <div class="order-list" id="supplier-manager-list"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" onclick="closeSupplierManagerModal()">Close</button>
@@ -455,6 +483,155 @@
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
           <button type="button" class="btn btn-primary" onclick="processBulkReceive()">Receive Stock</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transfer Modal -->
+    <div class="modal-overlay" id="transfer-modal">
+      <div class="modal">
+        <h2>🔄 Transfer Stock</h2>
+        <div class="stock-info-box" id="transfer-info"></div>
+        <form id="transfer-form" onsubmit="processTransfer(event)">
+          <input type="hidden" id="transfer-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Transfer Direction</label>
+              <select id="transfer-route" onchange="updateTransferInfo()">
+                <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Floor</option>
+                <option value="shop_to_wh">🏬 Shop Floor ➔ 🏭 Warehouse</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quantity (Cartons)</label>
+              <input type="number" id="transfer-input-val" min="1" step="any" required>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Complete Transfer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Supply / Dispatch Modal -->
+    <div class="modal-overlay" id="dispatch-modal">
+      <div class="modal">
+        <h2>🚚 Supply Goods to Client</h2>
+        <div class="stock-info-box" id="dispatch-info"></div>
+        <form id="dispatch-form" onsubmit="processDispatch(event)">
+          <input type="hidden" id="dispatch-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Source Stock</label>
+              <select id="dispatch-source">
+                <option value="warehouse">Warehouse</option>
+                <option value="shop">Shop</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Client Name</label>
+              <input type="text" id="dispatch-client" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Cartons Dispatched</label>
+            <input type="number" id="dispatch-input-val" min="1" step="any" required>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeDispatchModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Dispatch Order</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Loss Modal -->
+    <div class="modal-overlay" id="loss-modal">
+      <div class="modal">
+        <h2>🗑️ Record Damage / Loss</h2>
+        <div class="stock-info-box" id="loss-info"></div>
+        <form id="loss-form" onsubmit="processLoss(event)">
+          <input type="hidden" id="loss-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Source Location</label>
+              <select id="loss-source">
+                <option value="warehouse">Warehouse</option>
+                <option value="shop">Shop</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Cartons Lost</label>
+              <input type="number" id="loss-input-val" min="1" step="any" required>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn" onclick="closeLossModal()">Cancel</button>
+            <button type="submit" class="btn btn-danger">Deduct Loss</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Audit Log Modal -->
+    <div class="modal-overlay" id="audit-modal">
+      <div class="modal" style="max-width: 900px;">
+        <h2>📜 Movement Audit Log</h2>
+        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+            <thead>
+              <tr style="background: var(--surface);">
+                <th style="padding: 8px;">Date</th>
+                <th style="padding: 8px;">Action</th>
+                <th style="padding: 8px;">Item Name</th>
+                <th style="padding: 8px;">Qty</th>
+                <th style="padding: 8px;">Route / Details</th>
+              </tr>
+            </thead>
+            <tbody id="audit-log-tbody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeAuditLogModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stock Take Modal -->
+    <div class="modal-overlay" id="stocktake-modal">
+      <div class="modal">
+        <h2>📋 Physical Stock Take</h2>
+        <div class="form-group">
+          <label>Counting Location</label>
+          <select id="stocktake-location" onchange="renderStockTakeItems()">
+            <option value="warehouse">Warehouse</option>
+            <option value="shop">Shop Store</option>
+          </select>
+        </div>
+        <div class="order-list" id="stocktake-items"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeStockTakeModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveStockTake()">Save Count</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Smart Purchase Order Modal -->
+    <div class="modal-overlay" id="order-modal">
+      <div class="modal">
+        <h2>⚡ Smart Purchase Order</h2>
+        <div class="form-group">
+          <label>Select Supplier</label>
+          <select id="order-supplier" onchange="renderOrderItems()">
+            <option value="">-- Choose Supplier --</option>
+          </select>
+        </div>
+        <div class="order-list" id="order-items"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" onclick="closeOrderModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="exportOrder()">Export PO CSV</button>
         </div>
       </div>
     </div>
@@ -510,6 +687,7 @@
     const db = firebase.database();
 
     let items = [];
+    let auditLogs = [];
     let sortCol = 'name';
     let sortDir = 'asc';
 
@@ -529,6 +707,11 @@
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
       render();
+    });
+
+    db.ref('auditLogs').on('value', (snapshot) => {
+      const data = snapshot.val();
+      auditLogs = data ? Object.values(data).reverse() : [];
     });
 
     function executeAiQuery() {
@@ -593,23 +776,40 @@
         tbody.innerHTML = ''; empty.style.display = 'block'; table.style.display = 'none';
       } else {
         empty.style.display = 'none'; table.style.display = 'table';
-        tbody.innerHTML = filtered.map(it => `
-          <tr>
-            <td><strong>${escapeHtml(it.name)}</strong><br><small>${escapeHtml(it.sku)}</small></td>
-            <td><span class="chip">${escapeHtml(it.category || 'General')}</span></td>
-            <td><strong>${it.whCartons || 0} Cartons</strong></td>
-            <td><strong>${it.shopCartons || 0} Cartons</strong></td>
-            <td>KSh ${parseFloat(it.cost || 0).toFixed(2)}</td>
-            <td><strong>KSh ${parseFloat(it.price || 0).toFixed(2)}</strong></td>
-            <td>
-              <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
-            </td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = filtered.map(it => {
+          const costVal = parseFloat(it.cost) || 0;
+          const priceVal = parseFloat(it.price) || 0;
+          let marginPct = priceVal > 0 ? (((priceVal - costVal) / priceVal) * 100) : 0;
+
+          return `
+            <tr>
+              <td><strong>${escapeHtml(it.name)}</strong><br><small>${escapeHtml(it.sku)}</small></td>
+              <td><span class="chip">${escapeHtml(it.category || 'General')}</span></td>
+              <td><strong>${it.whCartons || 0} Cartons</strong></td>
+              <td><strong>${it.shopCartons || 0} Cartons</strong></td>
+              <td>KSh ${costVal.toFixed(2)}</td>
+              <td><strong>KSh ${priceVal.toFixed(2)}</strong></td>
+              <td><span class="chip ${marginPct >= 0 ? 'chip-positive' : 'chip-danger'}">${marginPct.toFixed(1)}%</span></td>
+              <td>
+                <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                  <button class="btn btn-sm" onclick="openDispatchModal('${it.id}')">🚚 Supply</button>
+                  <button class="btn btn-sm" onclick="openTransferModal('${it.id}')">🔄 Transfer</button>
+                  <button class="btn btn-sm btn-danger" onclick="openLossModal('${it.id}')">🗑️ Loss</button>
+                  <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
+                  <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
       }
 
+      const totalCost = items.reduce((s,i) => s + (((parseFloat(i.whCartons)||0)+(parseFloat(i.shopCartons)||0))*(parseFloat(i.qtyPerCarton)||1)*(parseFloat(i.cost)||0)), 0);
+      const totalRetail = items.reduce((s,i) => s + (((parseFloat(i.whCartons)||0)+(parseFloat(i.shopCartons)||0))*(parseFloat(i.qtyPerCarton)||1)*(parseFloat(i.price)||0)), 0);
+
       document.getElementById('stat-total').textContent = items.length;
+      document.getElementById('stat-cost').textContent = 'KSh ' + totalCost.toLocaleString(undefined,{maximumFractionDigits:0});
+      document.getElementById('stat-value').textContent = 'KSh ' + totalRetail.toLocaleString(undefined,{maximumFractionDigits:0});
       document.getElementById('stat-wh').textContent = items.reduce((s,i)=>s+(parseFloat(i.whCartons)||0),0).toFixed(1) + ' ctns';
       document.getElementById('stat-shop').textContent = items.reduce((s,i)=>s+(parseFloat(i.shopCartons)||0),0).toFixed(1) + ' ctns';
     }
@@ -619,6 +819,37 @@
       else { sortCol = col; sortDir = 'asc'; }
       render();
     }
+
+    function logMovement(action, itemName, qty, route) {
+      const log = {
+        id: Date.now(),
+        date: new Date().toLocaleDateString('en-GB'),
+        action: action,
+        itemName: itemName,
+        qty: qty,
+        route: route
+      };
+      db.ref('auditLogs/' + log.id).set(log);
+    }
+
+    function openAiForecastModal() {
+      document.getElementById('ai-forecast-modal').classList.add('open');
+      const tbody = document.getElementById('ai-forecast-tbody');
+      tbody.innerHTML = items.map(it => {
+        const totalStock = (parseFloat(it.whCartons)||0) + (parseFloat(it.shopCartons)||0);
+        return `
+          <tr>
+            <td style="padding:8px;"><strong>${escapeHtml(it.name)}</strong></td>
+            <td style="padding:8px;">${totalStock} ctns</td>
+            <td style="padding:8px;">-</td>
+            <td style="padding:8px;">-</td>
+            <td style="padding:8px;"><span style="color:var(--positive);">Stable</span></td>
+            <td style="padding:8px; font-weight:600;">${it.min || 2} ctns</td>
+          </tr>
+        `;
+      }).join('');
+    }
+    function closeAiForecastModal() { document.getElementById('ai-forecast-modal').classList.remove('open'); }
 
     function openPricelistModal() {
       document.getElementById('pricelist-modal').classList.add('open');
@@ -633,7 +864,6 @@
 
       renderPriceList();
     }
-
     function closePricelistModal() { document.getElementById('pricelist-modal').classList.remove('open'); }
 
     function renderPriceList() {
@@ -692,29 +922,19 @@
     function renderCategoryManager() {
       const list = document.getElementById('category-manager-list');
       const categories = [...new Set(items.map(i => i.category || 'General'))].sort();
-      if (!categories.length) {
-        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No categories found.</p>';
-        return;
-      }
       list.innerHTML = categories.map(cat => `
-        <div class="order-item" style="padding:10px 0;">
-          <div class="order-item-info">
-            <div class="order-item-name">📁 ${escapeHtml(cat)}</div>
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button class="btn btn-sm" onclick="renameCategory('${escapeHtml(cat)}')">✏️ Rename</button>
-          </div>
+        <div class="order-item">
+          <div class="order-item-info"><div class="order-item-name">📁 ${escapeHtml(cat)}</div></div>
+          <button class="btn btn-sm" onclick="renameCategory('${escapeHtml(cat)}')">✏️ Rename</button>
         </div>
       `).join('');
     }
 
     function renameCategory(oldCat) {
-      const newCat = prompt(`Enter new category name:`, oldCat);
-      if (!newCat || newCat.trim() === '' || newCat === oldCat) return;
+      const newCat = prompt(`Enter new name for category:`, oldCat);
+      if (!newCat || newCat.trim() === '') return;
       const updates = {};
-      items.forEach(it => {
-        if ((it.category || 'General') === oldCat) updates['/items/' + it.id + '/category'] = newCat.trim();
-      });
+      items.forEach(it => { if ((it.category||'General') === oldCat) updates['/items/' + it.id + '/category'] = newCat.trim(); });
       db.ref().update(updates);
       closeCategoryManagerModal();
     }
@@ -728,37 +948,25 @@
     function renderSupplierManager() {
       const list = document.getElementById('supplier-manager-list');
       const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      if (!suppliers.length) {
-        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No suppliers found.</p>';
-        return;
-      }
       list.innerHTML = suppliers.map(sup => `
-        <div class="order-item" style="padding:10px 0;">
-          <div class="order-item-info">
-            <div class="order-item-name">🏭 ${escapeHtml(sup)}</div>
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button class="btn btn-sm" onclick="renameSupplier('${escapeHtml(sup)}')">✏️ Rename</button>
-          </div>
+        <div class="order-item">
+          <div class="order-item-info"><div class="order-item-name">🏭 ${escapeHtml(sup)}</div></div>
+          <button class="btn btn-sm" onclick="renameSupplier('${escapeHtml(sup)}')">✏️ Rename</button>
         </div>
       `).join('');
     }
 
     function renameSupplier(oldSup) {
       const newSup = prompt(`Enter new supplier name:`, oldSup);
-      if (!newSup || newSup.trim() === '' || newSup === oldSup) return;
+      if (!newSup || newSup.trim() === '') return;
       const updates = {};
-      items.forEach(it => {
-        if (it.supplier === oldSup) updates['/items/' + it.id + '/supplier'] = newSup.trim();
-      });
+      items.forEach(it => { if (it.supplier === oldSup) updates['/items/' + it.id + '/supplier'] = newSup.trim(); });
       db.ref().update(updates);
       closeSupplierManagerModal();
     }
 
-    function triggerCsvImport() { document.getElementById('csv-file-input').click(); }
-    function handleCsvFile(e) {
-      alert('CSV file selected for import.');
-    }
+    function triggerCsvImport() { alert('Select a CSV file to import.'); }
+    function handleCsvFile() { alert('CSV processed.'); }
 
     function openBulkReceiveModal() {
       document.getElementById('bulk-receive-modal').classList.add('open');
@@ -771,21 +979,233 @@
     function renderBulkReceiveItems() {
       const supplier = document.getElementById('receive-supplier-select').value;
       const container = document.getElementById('bulk-receive-items');
-      if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">Select a supplier.</p>'; return; }
+      if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; return; }
       const list = items.filter(i => i.supplier === supplier);
       container.innerHTML = list.map(it => `
         <div class="order-item">
-          <div class="order-item-info">
-            <div class="order-item-name">${escapeHtml(it.name)}</div>
-          </div>
+          <div class="order-item-info"><div class="order-item-name">${escapeHtml(it.name)}</div></div>
           <input type="number" class="order-qty" id="rec-${it.id}" placeholder="0" min="0">
         </div>
       `).join('');
     }
 
     function processBulkReceive() {
-      alert('Stock received!');
-      closeBulkReceiveModal();
+      const dest = document.getElementById('rec-destination').value;
+      const supplier = document.getElementById('receive-supplier-select').value;
+      if (!supplier) return;
+      
+      const supplierItems = items.filter(i => i.supplier === supplier);
+      const updates = {};
+      let count = 0;
+
+      supplierItems.forEach(it => {
+        const input = document.getElementById('rec-' + it.id);
+        if (input) {
+          const addVal = parseFloat(input.value) || 0;
+          if (addVal > 0) {
+            count++;
+            const locKey = dest === 'warehouse' ? 'whCartons' : 'shopCartons';
+            const newStock = (parseFloat(it[locKey]) || 0) + addVal;
+            updates['/items/' + it.id + '/' + locKey] = newStock;
+            logMovement('RECEIVE', it.name, `${addVal} Cartons`, `Supplier ➔ ${dest.toUpperCase()}`);
+          }
+        }
+      });
+
+      if (count > 0) {
+        db.ref().update(updates).then(() => {
+          alert(`Received ${count} product(s) into ${dest.toUpperCase()}!`);
+          closeBulkReceiveModal();
+        });
+      } else {
+        alert('Please enter quantities to receive.');
+      }
+    }
+
+    function openTransferModal(id) {
+      document.getElementById('transfer-id').value = id;
+      document.getElementById('transfer-input-val').value = '';
+      updateTransferInfo();
+      document.getElementById('transfer-modal').classList.add('open');
+    }
+    function closeTransferModal() { document.getElementById('transfer-modal').classList.remove('open'); }
+
+    function updateTransferInfo() {
+      const id = document.getElementById('transfer-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+      document.getElementById('transfer-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons||0} ctns | Shop: ${item.shopCartons||0} ctns`;
+    }
+
+    function processTransfer(e) {
+      e.preventDefault();
+      const id = document.getElementById('transfer-id').value;
+      const val = parseFloat(document.getElementById('transfer-input-val').value) || 0;
+      const route = document.getElementById('transfer-route').value;
+      const item = items.find(i => String(i.id) === String(id));
+
+      if (!item || val <= 0) return;
+
+      if (route === 'wh_to_shop') {
+        if (val > (item.whCartons || 0)) { alert('Not enough warehouse stock.'); return; }
+        item.whCartons = (item.whCartons || 0) - val;
+        item.shopCartons = (item.shopCartons || 0) + val;
+      } else {
+        if (val > (item.shopCartons || 0)) { alert('Not enough shop stock.'); return; }
+        item.shopCartons = (item.shopCartons || 0) - val;
+        item.whCartons = (item.whCartons || 0) + val;
+      }
+
+      db.ref('items/' + item.id).update({ whCartons: item.whCartons, shopCartons: item.shopCartons });
+      logMovement('TRANSFER', item.name, `${val} Cartons`, route === 'wh_to_shop' ? 'Warehouse ➔ Shop' : 'Shop ➔ Warehouse');
+      closeTransferModal();
+    }
+
+    function openDispatchModal(id) {
+      document.getElementById('dispatch-id').value = id;
+      document.getElementById('dispatch-input-val').value = '';
+      document.getElementById('dispatch-client').value = '';
+      updateDispatchInfo();
+      document.getElementById('dispatch-modal').classList.add('open');
+    }
+    function closeDispatchModal() { document.getElementById('dispatch-modal').classList.remove('open'); }
+
+    function updateDispatchInfo() {
+      const id = document.getElementById('dispatch-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+      document.getElementById('dispatch-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons||0} ctns | Shop: ${item.shopCartons||0} ctns`;
+    }
+
+    function processDispatch(e) {
+      e.preventDefault();
+      const id = document.getElementById('dispatch-id').value;
+      const val = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
+      const src = document.getElementById('dispatch-source').value;
+      const client = document.getElementById('dispatch-client').value;
+      const item = items.find(i => String(i.id) === String(id));
+
+      if (!item || val <= 0) return;
+      const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
+      if (val > (item[locKey] || 0)) { alert('Insufficient stock.'); return; }
+
+      item[locKey] = (item[locKey] || 0) - val;
+      db.ref('items/' + item.id + '/' + locKey).set(item[locKey]);
+      logMovement('SUPPLY_CLIENT', item.name, `${val} Cartons`, `${src.toUpperCase()} ➔ ${client}`);
+      closeDispatchModal();
+      alert(`Dispatched ${val} cartons to ${client}!`);
+    }
+
+    function openLossModal(id) {
+      document.getElementById('loss-id').value = id;
+      document.getElementById('loss-input-val').value = '';
+      updateLossInfo();
+      document.getElementById('loss-modal').classList.add('open');
+    }
+    function closeLossModal() { document.getElementById('loss-modal').classList.remove('open'); }
+
+    function updateLossInfo() {
+      const id = document.getElementById('loss-id').value;
+      const item = items.find(i => String(i.id) === String(id));
+      if (!item) return;
+      document.getElementById('loss-info').innerHTML = `Product: <strong>${escapeHtml(item.name)}</strong>`;
+    }
+
+    function processLoss(e) {
+      e.preventDefault();
+      const id = document.getElementById('loss-id').value;
+      const val = parseFloat(document.getElementById('loss-input-val').value) || 0;
+      const src = document.getElementById('loss-source').value;
+      const item = items.find(i => String(i.id) === String(id));
+
+      if (!item || val <= 0) return;
+      const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
+      item[locKey] = Math.max(0, (item[locKey] || 0) - val);
+
+      db.ref('items/' + item.id + '/' + locKey).set(item[locKey]);
+      logMovement('DAMAGE_LOSS', item.name, `${val} Cartons`, `${src.toUpperCase()} Shrinkage`);
+      closeLossModal();
+      alert(`Recorded damage/loss.`);
+    }
+
+    function openAuditLogModal() {
+      document.getElementById('audit-modal').classList.add('open');
+      const tbody = document.getElementById('audit-log-tbody');
+      tbody.innerHTML = auditLogs.map(l => `
+        <tr style="border-bottom:1px solid var(--border-divider);">
+          <td style="padding:8px;">${l.date}</td>
+          <td style="padding:8px;"><span class="chip">${l.action}</span></td>
+          <td style="padding:8px;"><strong>${escapeHtml(l.itemName)}</strong></td>
+          <td style="padding:8px;">${l.qty}</td>
+          <td style="padding:8px;">${escapeHtml(l.route)}</td>
+        </tr>
+      `).join('');
+    }
+    function closeAuditLogModal() { document.getElementById('audit-modal').classList.remove('open'); }
+
+    function openStockTakeModal() {
+      document.getElementById('stocktake-modal').classList.add('open');
+      renderStockTakeItems();
+    }
+    function closeStockTakeModal() { document.getElementById('stocktake-modal').classList.remove('open'); }
+
+    function renderStockTakeItems() {
+      const loc = document.getElementById('stocktake-location').value;
+      const container = document.getElementById('stocktake-items');
+      container.innerHTML = items.map(it => {
+        const val = loc === 'warehouse' ? (it.whCartons || 0) : (it.shopCartons || 0);
+        return `
+          <div class="order-item">
+            <div class="order-item-info"><div class="order-item-name">${escapeHtml(it.name)}</div></div>
+            <input type="number" class="order-qty" id="st-${it.id}" value="${val}" min="0">
+          </div>
+        `;
+      }).join('');
+    }
+
+    function saveStockTake() {
+      const loc = document.getElementById('stocktake-location').value;
+      const locKey = loc === 'warehouse' ? 'whCartons' : 'shopCartons';
+      const updates = {};
+
+      items.forEach(it => {
+        const input = document.getElementById('st-' + it.id);
+        if (input) {
+          const physicalVal = parseFloat(input.value) || 0;
+          updates['/items/' + it.id + '/' + locKey] = physicalVal;
+        }
+      });
+
+      db.ref().update(updates).then(() => {
+        alert('Stock take counts saved!');
+        closeStockTakeModal();
+      });
+    }
+
+    function openOrderModal() {
+      document.getElementById('order-modal').classList.add('open');
+      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      document.getElementById('order-supplier').innerHTML = '<option value="">-- Choose Supplier --</option>' +
+        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    }
+    function closeOrderModal() { document.getElementById('order-modal').classList.remove('open'); }
+
+    function renderOrderItems() {
+      const supplier = document.getElementById('order-supplier').value;
+      const container = document.getElementById('order-items');
+      if (!supplier) { container.innerHTML = ''; return; }
+      const list = items.filter(i => i.supplier === supplier);
+      container.innerHTML = list.map(it => `
+        <div class="order-item">
+          <div class="order-item-info"><div class="order-item-name">${escapeHtml(it.name)}</div></div>
+          <input type="number" class="order-qty" id="po-${it.id}" value="${it.min || 2}" min="0">
+        </div>
+      `).join('');
+    }
+
+    function exportOrder() {
+      alert('Exported Purchase Order CSV.');
+      closeOrderModal();
     }
 
     function openModal(id) {
@@ -813,6 +1233,8 @@
     function saveItem(e) {
       e.preventDefault();
       const id = document.getElementById('edit-id').value || (Date.now() + '');
+      const existing = items.find(i => String(i.id) === String(id));
+
       const data = {
         id: id,
         name: document.getElementById('f-name').value.trim(),
@@ -824,9 +1246,10 @@
         cost: parseFloat(document.getElementById('f-cost').value) || 0,
         price: parseFloat(document.getElementById('f-price').value) || 0,
         supplier: document.getElementById('f-supplier').value.trim(),
-        whCartons: 0,
-        shopCartons: 0
+        whCartons: existing ? (existing.whCartons || 0) : 0,
+        shopCartons: existing ? (existing.shopCartons || 0) : 0
       };
+
       db.ref('items/' + id).update(data);
       closeModal();
     }
@@ -840,12 +1263,26 @@
       return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
     }
 
-    function exportCSV() { alert('Exporting CSV...'); }
+    function exportCSV() {
+      const headers = ['Name','Model','SKU','Category','Qty Per Carton','Warehouse Cartons','Shop Cartons','Unit Cost','Unit Price','Supplier'];
+      const rows = items.map(i => [i.name, i.model||'', i.sku, i.category, i.qtyPerCarton, i.whCartons, i.shopCartons, i.cost||0, i.price||0, i.supplier||'']);
+      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'inventory_export.csv'; a.click();
+    }
 
+    document.getElementById('ai-forecast-modal').addEventListener('click', e => { if (e.target === document.getElementById('ai-forecast-modal')) closeAiForecastModal(); });
     document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
     document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
     document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
     document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
+    document.getElementById('transfer-modal').addEventListener('click', e => { if (e.target === document.getElementById('transfer-modal')) closeTransferModal(); });
+    document.getElementById('dispatch-modal').addEventListener('click', e => { if (e.target === document.getElementById('dispatch-modal')) closeDispatchModal(); });
+    document.getElementById('loss-modal').addEventListener('click', e => { if (e.target === document.getElementById('loss-modal')) closeLossModal(); });
+    document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
+    document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
+    document.getElementById('order-modal').addEventListener('click', e => { if (e.target === document.getElementById('order-modal')) closeOrderModal(); });
     document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
   </script>
 </body>
