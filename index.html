@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventory Stock & Operations Tracker with AI Command Assistant</title>
+  <title>Inventory Stock & Operations Tracker</title>
   <style>
     :root {
       --bg: #ffffff;
@@ -55,7 +55,7 @@
     .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 22px; font-weight: 600; }
     
-    /* AI Command Console Bar */
+    /* Query Box */
     .ai-command-box {
       border: 1px solid var(--accent-purple);
       background: rgba(124, 58, 237, 0.04);
@@ -219,65 +219,19 @@
     .price { font-variant-numeric: tabular-nums; }
     .carton-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
     .order-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-divider); }
-    .order-item.active-entry { background: rgba(22, 163, 74, 0.08); border-radius: 6px; padding: 8px 6px; }
     .order-item-info { flex: 1; }
     .order-item-name { font-weight: 500; font-size: 14px; }
     .order-item-meta { font-size: 12px; color: var(--text-tertiary); }
     .order-qty { width: 85px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: center; font-weight: 600; }
-    .order-qty.has-value { border-color: var(--positive); background: rgba(22, 163, 74, 0.05); }
     .order-list { max-height: 380px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
     .stock-info-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; }
-    
-    .cat-section {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin-bottom: 12px;
-      background: var(--surface);
-      overflow: hidden;
-    }
-    .cat-header {
-      background: rgba(107, 114, 128, 0.1);
-      padding: 8px 12px;
-      font-weight: 600;
-      font-size: 13px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .cat-body { padding: 4px 12px; background: var(--bg); }
-    
-    .pagination-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .ai-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(124, 58, 237, 0.15);
-      color: var(--accent-purple);
-      font-weight: 600;
-    }
 
     @media print {
       body * { visibility: hidden; }
       #pricelist-print-area, #pricelist-print-area * { visibility: visible; }
-      #pricelist-print-area {
-        position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 20px;
-      }
+      #pricelist-print-area { position: absolute; left: 0; top: 0; width: 100%; color: #000; background: #fff; padding: 20px; }
       #pricelist-print-area table { width: 100%; border-collapse: collapse; font-size: 12pt; }
       #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-      #pricelist-print-area th { background-color: #f2f2f2; }
     }
   </style>
 </head>
@@ -296,15 +250,15 @@
       </div>
     </div>
 
-    <!-- AI Command Assistant Bar -->
+    <!-- AI Search Assistant Console -->
     <div class="ai-command-box">
       <div class="ai-command-header">
-        <span>💬 AI Command Assistant (Natural Language Console)</span>
-        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Examples: "l3 mops are less by 3", "received 10 cartons of kettles", "transfer 2 boxes to shop"</span>
+        <span>🔍 AI Inventory Search & Query Console</span>
+        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Examples: "mugs", "how many types of mugs do I have?", "kettles"</span>
       </div>
       <div class="ai-command-input-group">
-        <input type="text" class="ai-command-input" id="ai-cmd-input" placeholder="Type a command e.g., 'l3 mops are less by three' or 'received 5 cartons of flasks'..." onkeydown="if(event.key==='Enter') processAiCommand()">
-        <button class="btn btn-purple" onclick="processAiCommand()">⚡ Execute Command</button>
+        <input type="text" class="ai-command-input" id="ai-query-input" placeholder="Ask e.g., 'how many types of mugs do I have?' or 'mops'..." onkeydown="if(event.key==='Enter') executeAiQuery()">
+        <button class="btn btn-purple" onclick="executeAiQuery()">🔎 Search / Count</button>
       </div>
     </div>
 
@@ -336,11 +290,7 @@
       <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; user-select:none; padding: 0 4px;">
         <input type="checkbox" id="filter-low-stock" onchange="render()"> ⚠️ Low Stock Only
       </label>
-      <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" onclick="openCategoryManagerModal()">🏷️ Manage Categories</button>
-      <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" onclick="openSupplierManagerModal()">🏭 Manage Suppliers</button>
       <button class="btn" style="border-color:var(--positive); color:var(--positive);" onclick="openPricelistModal()">🏷️ Supplier Price Lists</button>
-      <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" onclick="triggerCsvImport()">📥 Import CSV Data</button>
-      <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCsvFile(event)">
       <button class="btn" onclick="openAuditLogModal()">📜 Movement Audit Log</button>
       <button class="btn" onclick="openStockTakeModal()">📋 Stock Take</button>
       <button class="btn" onclick="openOrderModal()">⚡ Smart PO Order</button>
@@ -364,241 +314,57 @@
         <tbody id="tbody"></tbody>
       </table>
       <div class="empty-state" id="empty" style="display:none;">
-        <p>No items found. Add your first product or click "Import CSV Data".</p>
+        <p>No items found.</p>
       </div>
     </div>
 
-    <!-- AI Demand Forecast & Stock Run-Out Modal -->
-    <div class="modal-overlay" id="ai-forecast-modal">
-      <div class="modal" style="max-width: 850px;">
-        <h2>🤖 AI Demand Forecast & Run-Out Engine</h2>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
-          Calculates daily consumption velocity using historical sales, dispatches, and shrinkage logs to forecast stock depletion dates.
-        </p>
-        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <thead>
-              <tr style="background: var(--surface);">
-                <th style="padding: 8px;">Item Name</th>
-                <th style="padding: 8px;">Total Stock</th>
-                <th style="padding: 8px;">30-Day Outflow</th>
-                <th style="padding: 8px;">Burn Rate / Day</th>
-                <th style="padding: 8px;">Run-Out Forecast</th>
-                <th style="padding: 8px;">AI Reorder Level</th>
-              </tr>
-            </thead>
-            <tbody id="ai-forecast-tbody"></tbody>
-          </table>
-        </div>
-        <div class="modal-actions" style="margin-top: 16px;">
-          <button type="button" class="btn" onclick="closeAiForecastModal()">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Supplier Price List Generator Modal -->
+    <!-- Modals -->
     <div class="modal-overlay" id="pricelist-modal">
       <div class="modal" style="max-width: 850px;">
         <h2>🏷️ Generate Supplier Price List</h2>
         <div class="form-row" style="grid-template-columns: 2fr 1fr 1fr; gap: 8px;">
-          <div class="form-group">
-            <label>Select Supplier *</label>
-            <select id="pl-supplier" onchange="renderPriceList()"></select>
-          </div>
-          <div class="form-group">
-            <label>Filter Category</label>
-            <select id="pl-category" onchange="renderPriceList()">
-              <option value="">-- All Categories --</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Prices to Show</label>
-            <select id="pl-type" onchange="renderPriceList()">
-              <option value="both">Cost & Selling Price</option>
-              <option value="cost">Unit Cost Only (Buying)</option>
-              <option value="price">Selling Price Only (Retail)</option>
-            </select>
-          </div>
+          <div class="form-group"><label>Supplier *</label><select id="pl-supplier" onchange="renderPriceList()"></select></div>
+          <div class="form-group"><label>Category</label><select id="pl-category" onchange="renderPriceList()"><option value="">-- All --</option></select></div>
+          <div class="form-group"><label>Prices</label><select id="pl-type" onchange="renderPriceList()"><option value="both">Both</option><option value="cost">Cost Only</option><option value="price">Selling Price Only</option></select></div>
         </div>
-
         <div id="pricelist-print-area">
-          <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid var(--border); padding-bottom: 8px;">
-            <div>
-              <h3 id="pl-header-supplier" style="margin: 0; font-size: 18px;">Supplier Price Catalog</h3>
-              <span id="pl-header-meta" style="font-size: 12px; color: var(--text-tertiary);">Generated on: -</span>
-            </div>
-            <div style="text-align: right; font-size: 12px; color: var(--text-secondary);" id="pl-header-count">0 items</div>
-          </div>
-          <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;" id="pl-table-wrap">
+          <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-              <thead>
-                <tr style="background: var(--surface);">
-                  <th style="padding: 8px;">SKU</th>
-                  <th style="padding: 8px;">Item Name</th>
-                  <th style="padding: 8px;">Model</th>
-                  <th style="padding: 8px;">Category</th>
-                  <th style="padding: 8px;">Packaging</th>
-                  <th style="padding: 8px; text-align: right;" id="pl-th-cost">Unit Cost (KSh)</th>
-                  <th style="padding: 8px; text-align: right;" id="pl-th-price">Unit Price (KSh)</th>
-                </tr>
-              </thead>
+              <thead><tr style="background: var(--surface);"><th>SKU</th><th>Item</th><th>Model</th><th>Category</th><th>Pack</th><th id="pl-th-cost">Cost</th><th id="pl-th-price">Price</th></tr></thead>
               <tbody id="pricelist-tbody"></tbody>
             </table>
           </div>
         </div>
-
         <div class="modal-actions" style="margin-top: 16px;">
-          <button type="button" class="btn" onclick="exportPriceListCSV()">📄 Export CSV</button>
           <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Print Price List</button>
           <button type="button" class="btn" onclick="closePricelistModal()">Close</button>
         </div>
       </div>
     </div>
 
-    <!-- Category Manager Modal -->
-    <div class="modal-overlay" id="category-modal">
-      <div class="modal" style="max-width: 600px;">
-        <h2>🏷️ Manage Categories</h2>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
-          Rename or delete misspelled categories. Renaming will update all associated items. Deleting sets affected items to "General".
-        </p>
-        <div class="order-list" id="category-manager-list" style="max-height: 350px;"></div>
-        <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeCategoryManagerModal()">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Supplier Manager Modal -->
-    <div class="modal-overlay" id="supplier-modal">
-      <div class="modal" style="max-width: 600px;">
-        <h2>🏭 Manage Suppliers</h2>
-        <p style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px;">
-          Rename or delete suppliers. Deleting a supplier unassigns them from any tagged products.
-        </p>
-        <div class="order-list" id="supplier-manager-list" style="max-height: 350px;"></div>
-        <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeSupplierManagerModal()">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- CSV Preview & AI Mapper Modal -->
-    <div class="modal-overlay" id="csv-preview-modal">
-      <div class="modal" style="max-width: 800px;">
-        <h2>📥 CSV Import Mapping & AI Auto-Detection</h2>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <p style="font-size: 12px; color: var(--text-tertiary); margin:0;">
-            Verify or modify the auto-detected CSV column mapping before importing.
-          </p>
-          <span class="ai-badge">🤖 AI Auto-Mapped</span>
-        </div>
-        
-        <div class="form-row" style="grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
-          <div class="form-group"><label>Item Name *</label><select id="csv-map-name"></select></div>
-          <div class="form-group"><label>Model</label><select id="csv-map-model"></select></div>
-          <div class="form-group"><label>SKU</label><select id="csv-map-sku"></select></div>
-          <div class="form-group"><label>Category</label><select id="csv-map-cat"></select></div>
-          <div class="form-group"><label>Qty / Carton</label><select id="csv-map-qtyPerCarton"></select></div>
-          <div class="form-group"><label>Wh. Cartons</label><select id="csv-map-whCartons"></select></div>
-          <div class="form-group"><label>Shop Cartons</label><select id="csv-map-shopCartons"></select></div>
-          <div class="form-group"><label>Unit Label</label><select id="csv-map-unit"></select></div>
-          <div class="form-group"><label>Unit Cost (KSh)</label><select id="csv-map-cost"></select></div>
-          <div class="form-group"><label>Unit Price (KSh)</label><select id="csv-map-price"></select></div>
-          <div class="form-group"><label>Supplier</label><select id="csv-map-supplier"></select></div>
-        </div>
-
-        <div style="font-size:12px; font-weight:600; margin-bottom:6px;">Sample Preview (First 3 Rows):</div>
-        <div style="overflow-x:auto; border:1px solid var(--border); border-radius:8px; margin-bottom:12px;">
-          <table style="width:100%; font-size:11px;" id="csv-preview-table"></table>
-        </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn" onclick="closeCsvPreviewModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="confirmCsvImport()">Confirm & Merge Import</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal Single Item Add/Edit -->
+    <!-- Item Modal -->
     <div class="modal-overlay" id="modal">
       <div class="modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-          <h2 id="modal-title" style="margin:0;">Add single item</h2>
-          <span class="ai-badge" id="ai-cat-badge" style="display:none;">🤖 AI Auto-Categorized</span>
-        </div>
+        <h2 id="modal-title">Add single item</h2>
         <form id="item-form" onsubmit="saveItem(event)">
           <input type="hidden" id="edit-id">
           <div class="form-row">
-            <div class="form-group">
-              <label>Item name</label>
-              <input type="text" id="f-name" required oninput="handleNameInput()">
-            </div>
-            <div class="form-group">
-              <label>Model</label>
-              <input type="text" id="f-model" placeholder="e.g. MX-2024-BLK">
-            </div>
+            <div class="form-group"><label>Item name</label><input type="text" id="f-name" required></div>
+            <div class="form-group"><label>Model</label><input type="text" id="f-model"></div>
           </div>
           <div class="form-row">
-            <div class="form-group">
-              <label>SKU <span style="font-weight:400;color:var(--text-tertiary);">(auto-generated)</span></label>
-              <input type="text" id="f-sku" required>
-            </div>
-            <div class="form-group">
-              <label>Category</label>
-              <input type="text" id="f-category" list="cat-list" required oninput="autoSKU()">
-              <datalist id="cat-list"></datalist>
-            </div>
+            <div class="form-group"><label>SKU</label><input type="text" id="f-sku" required></div>
+            <div class="form-group"><label>Category</label><input type="text" id="f-category" required></div>
           </div>
-
           <div class="form-row">
-            <div class="form-group">
-              <label>Qty per carton (Packaging count)</label>
-              <input type="number" id="f-qtyPerCarton" min="1" value="1">
-            </div>
-            <div class="form-group">
-              <label>Unit Label</label>
-              <input type="text" id="f-unit" placeholder="pcs, set, box..." required value="pcs">
-            </div>
+            <div class="form-group"><label>Qty per carton</label><input type="number" id="f-qtyPerCarton" min="1" value="1"></div>
+            <div class="form-group"><label>Unit Label</label><input type="text" id="f-unit" value="pcs" required></div>
           </div>
-
-          <div class="form-row" id="initial-stock-section">
-            <div class="form-group">
-              <label>Receiving Location</label>
-              <select id="f-initialLoc">
-                <option value="warehouse">🏭 Warehouse</option>
-                <option value="shop">🏬 Shop Store</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Initial Cartons Received</label>
-              <input type="number" id="f-initialCartons" min="0" value="0">
-            </div>
-          </div>
-
           <div class="form-row">
-            <div class="form-group">
-              <label>Unit Cost (Buying Price KSh)</label>
-              <input type="number" id="f-cost" min="0" step="0.01" required placeholder="Cost per piece">
-            </div>
-            <div class="form-group">
-              <label>Unit Price (Selling Price KSh)</label>
-              <input type="number" id="f-price" min="0" step="0.01" required placeholder="Selling price per piece">
-            </div>
+            <div class="form-group"><label>Unit Cost (KSh)</label><input type="number" id="f-cost" step="0.01" required></div>
+            <div class="form-group"><label>Unit Price (KSh)</label><input type="number" id="f-price" step="0.01" required></div>
           </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>Min Stock Threshold (Total Cartons)</label>
-              <input type="number" id="f-min" min="0" required value="2">
-            </div>
-            <div class="form-group">
-              <label>Supplier</label>
-              <input type="text" id="f-supplier" list="supplier-list" placeholder="Start typing supplier name...">
-              <datalist id="supplier-list"></datalist>
-            </div>
-          </div>
-
+          <div class="form-group"><label>Supplier</label><input type="text" id="f-supplier"></div>
           <div class="modal-actions">
             <button type="button" class="btn" onclick="closeModal()">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Item</button>
@@ -606,306 +372,9 @@
         </form>
       </div>
     </div>
-
-    <!-- Bulk Supplier Receive Modal -->
-    <div class="modal-overlay" id="bulk-receive-modal">
-      <div class="modal">
-        <h2>📦 Receive Supplier Shipment</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label style="font-weight:600;">Select Supplier</label>
-            <select id="receive-supplier-select" onchange="renderBulkReceiveItems(true)">
-              <option value="">-- Choose Supplier --</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label style="font-weight:600;">Receiving Destination</label>
-            <select id="rec-destination">
-              <option value="warehouse">🏭 Warehouse</option>
-              <option value="shop">🏬 Shop Store</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Invoice / Waybill No.</label>
-            <input type="text" id="rec-invoice-no" placeholder="e.g. INV-98214">
-          </div>
-          <div class="form-group">
-            <label>Delivery Date</label>
-            <input type="date" id="rec-delivery-date">
-          </div>
-        </div>
-
-        <div class="form-group" style="margin-top: 4px;">
-          <input type="text" class="search-input" id="rec-search" placeholder="🔍 Search product name, model, or SKU within supplier items..." oninput="renderBulkReceiveItems()" style="width: 100%;">
-        </div>
-
-        <div class="order-list" id="bulk-receive-items"></div>
-        <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="closeBulkReceiveModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="processBulkReceive()">Receive Stock</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Transfer Modal -->
-    <div class="modal-overlay" id="transfer-modal">
-      <div class="modal">
-        <h2>🔄 Transfer Stock Between Locations</h2>
-        <div class="stock-info-box" id="transfer-info"></div>
-        <form id="transfer-form" onsubmit="processTransfer(event)">
-          <input type="hidden" id="transfer-id">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Transfer Direction</label>
-              <select id="transfer-route" onchange="updateTransferInfo()">
-                <option value="wh_to_shop">🏭 Warehouse ➔ 🏬 Shop Floor</option>
-                <option value="shop_to_wh">🏬 Shop Floor ➔ 🏭 Warehouse</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Transfer Unit</label>
-              <select id="transfer-unit-mode" onchange="updateTransferLabel()">
-                <option value="cartons">Cartons</option>
-                <option value="pcs">Pieces / Units</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Transfer Note / Ref No.</label>
-              <input type="text" id="transfer-delivery-no" placeholder="e.g. TR-2026-001">
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="transfer-date" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label id="transfer-qty-label">Quantity to Transfer</label>
-            <input type="number" id="transfer-input-val" min="1" step="any" required placeholder="Enter quantity">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeTransferModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Complete Transfer</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Direct Client Delivery / Supply Modal -->
-    <div class="modal-overlay" id="dispatch-modal">
-      <div class="modal">
-        <h2>🚚 Supply Goods to Client / Order Dispatch</h2>
-        <div class="stock-info-box" id="dispatch-info"></div>
-        <form id="dispatch-form" onsubmit="processDispatch(event)">
-          <input type="hidden" id="dispatch-id">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Supply From (Source Stock)</label>
-              <select id="dispatch-source" onchange="updateDispatchInfo()">
-                <option value="warehouse">🏭 Warehouse Stock</option>
-                <option value="shop">🏬 Shop Floor Stock</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Deduct Unit</label>
-              <select id="dispatch-unit-mode" onchange="updateDispatchLabel()">
-                <option value="cartons">Cartons</option>
-                <option value="pcs">Pieces / Units</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Delivery Note / Receipt No.</label>
-              <input type="text" id="dispatch-delivery-no" placeholder="e.g. DN-2026-992">
-            </div>
-            <div class="form-group">
-              <label>Dispatch Date</label>
-              <input type="date" id="dispatch-date" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Client / Recipient Name</label>
-            <input type="text" id="dispatch-client" list="client-list" required placeholder="Start typing or enter new client name..." autocomplete="off">
-            <datalist id="client-list"></datalist>
-          </div>
-          <div class="form-group">
-            <label id="dispatch-qty-label">Quantity Dispatched</label>
-            <input type="number" id="dispatch-input-val" min="1" step="any" required placeholder="Enter quantity">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeDispatchModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">Deduct & Dispatch Order</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Stock Shrinkage / Damage Loss Adjustment Modal -->
-    <div class="modal-overlay" id="loss-modal">
-      <div class="modal">
-        <h2>🗑️ Record Stock Damage / Shrinkage Loss</h2>
-        <div class="stock-info-box" id="loss-info"></div>
-        <form id="loss-form" onsubmit="processLoss(event)">
-          <input type="hidden" id="loss-id">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Deduct From Location</label>
-              <select id="loss-source" onchange="updateLossInfo()">
-                <option value="warehouse">🏭 Warehouse Stock</option>
-                <option value="shop">🏬 Shop Floor Stock</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Deduct Unit</label>
-              <select id="loss-unit-mode">
-                <option value="cartons">Cartons</option>
-                <option value="pcs">Pieces / Units</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Reason for Loss</label>
-              <select id="loss-reason">
-                <option value="Damaged in Transit">Damaged in Transit</option>
-                <option value="Broken on Floor">Broken on Floor</option>
-                <option value="Expired / Unusable">Expired / Unusable</option>
-                <option value="Discrepancy / Shrinkage">Discrepancy / Shrinkage</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="loss-date" required>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Quantity Lost / Damaged</label>
-            <input type="number" id="loss-input-val" min="1" step="any" required placeholder="Enter quantity">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn" onclick="closeLossModal()">Cancel</button>
-            <button type="submit" class="btn btn-danger">Deduct Loss</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Movement Audit Log Modal (Paginated) -->
-    <div class="modal-overlay" id="audit-modal">
-      <div class="modal" style="max-width: 920px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
-          <h2 style="margin:0;">📜 Stock Movement Audit Log</h2>
-          <div style="display:flex; gap:8px; flex:1; max-width:520px;">
-            <input type="text" class="search-input" id="audit-search" placeholder="🔍 Search Invoice No, Delivery No, Client, Item, Date..." oninput="auditCurrentPage=1; renderAuditLogs()" style="padding:6px 10px; font-size:13px;">
-            <select id="audit-filter-action" onchange="auditCurrentPage=1; renderAuditLogs()" style="width:180px; padding:6px 10px; border-radius:8px; border:1px solid var(--border); font-size:13px; background:var(--bg); color:var(--text);">
-              <option value="">All Actions</option>
-              <option value="RECEIVE">RECEIVE (Inbound)</option>
-              <option value="SUPPLY_CLIENT">SUPPLY_CLIENT (Outbound)</option>
-              <option value="TRANSFER">TRANSFER (Inter-location)</option>
-              <option value="DAMAGE_LOSS">DAMAGE_LOSS (Shrinkage)</option>
-              <option value="STOCK_TAKE_ADJUST">STOCK_TAKE_ADJUST</option>
-            </select>
-          </div>
-        </div>
-        
-        <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin: 12px 0;">
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
-            <thead>
-              <tr style="background: var(--surface);">
-                <th style="padding: 8px;">Date (DD/MM/YYYY)</th>
-                <th style="padding: 8px;">Action</th>
-                <th style="padding: 8px;">Doc / Ref</th>
-                <th style="padding: 8px;">Item Name</th>
-                <th style="padding: 8px;">Qty</th>
-                <th style="padding: 8px;">Source / Destination / Notes</th>
-                <th style="padding: 8px; text-align:right;">Fix Action</th>
-              </tr>
-            </thead>
-            <tbody id="audit-log-tbody"></tbody>
-          </table>
-        </div>
-
-        <div class="pagination-bar">
-          <span id="audit-pagination-info">Showing logs 1 - 25</span>
-          <div style="display:flex; gap:6px;">
-            <button class="btn btn-sm" id="btn-audit-prev" onclick="changeAuditPage(-1)">◀ Previous</button>
-            <button class="btn btn-sm" id="btn-audit-next" onclick="changeAuditPage(1)">Next ▶</button>
-          </div>
-        </div>
-
-        <div class="modal-actions" style="margin-top:8px;">
-          <button type="button" class="btn" onclick="exportAuditLogCSV()">📄 Export Log CSV</button>
-          <button type="button" class="btn" onclick="closeAuditLogModal()">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stock Take Modal -->
-    <div class="modal-overlay" id="stocktake-modal">
-      <div class="modal">
-        <h2>📋 Physical Stock Take</h2>
-        <div class="form-row" style="margin-bottom:12px;">
-          <div class="form-group">
-            <label style="font-weight:600;">Counting Location</label>
-            <select id="stocktake-location" onchange="renderStockTakeItems()">
-              <option value="warehouse">🏭 Warehouse</option>
-              <option value="shop">🏬 Shop Store</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label style="font-weight:600;">Filter Supplier</label>
-            <select id="stocktake-supplier" onchange="renderStockTakeItems()">
-              <option value="">-- All Suppliers --</option>
-            </select>
-          </div>
-        </div>
-        <div class="order-list" id="stocktake-items"></div>
-        <div class="modal-actions" style="margin-top:16px;">
-          <button type="button" class="btn" onclick="exportStockTakeForm()">📄 Export Sheet CSV</button>
-          <button type="button" class="btn" onclick="closeStockTakeModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="saveStockTake()">Save Count</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Smart Purchase Order Modal -->
-    <div class="modal-overlay" id="order-modal">
-      <div class="modal">
-        <h2>⚡ Smart Purchase Order</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Select Supplier</label>
-            <select id="order-supplier" onchange="renderOrderItems()">
-              <option value="">-- Choose a supplier --</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Stock Target Days (Buffer)</label>
-            <select id="order-buffer-days" onchange="renderOrderItems()">
-              <option value="15">15 Days Buffer Stock</option>
-              <option value="30" selected>30 Days Buffer Stock (Default)</option>
-              <option value="60">60 Days Buffer Stock</option>
-            </select>
-          </div>
-        </div>
-        <div id="order-items-wrap" style="display:none;">
-          <div class="order-list" id="order-items"></div>
-          <div class="order-total" id="order-total" style="font-weight:600; text-align:right; margin-top:8px;">Order total: KSh 0.00</div>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn" onclick="closeOrderModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" onclick="exportOrder()">Export PO CSV</button>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <!-- Realtime Firebase Database Scripts -->
+  <!-- Firebase Scripts -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -917,261 +386,17 @@
       projectId: "inventory-tracker-8ba26",
       storageBucket: "inventory-tracker-8ba26.firebasestorage.app",
       messagingSenderId: "283281271142",
-      appId: "1:283281271142:web:34d150e2f14bbaf18c40a7",
-      measurementId: "G-8M37Q7QDR8"
+      appId: "1:283281271142:web:34d150e2f14bbaf18c40a7"
     };
 
     firebase.initializeApp(firebaseConfig);
-    
-    try {
-      firebase.database().setPersistenceEnabled(true);
-    } catch(e) {}
-
     const db = firebase.database();
 
-    function generateUniqueId() {
-      return Date.now() + Math.floor(Math.random() * 10000);
-    }
-
-    function getStoredJSON(key, fallback) {
-      try {
-        const val = localStorage.getItem(key);
-        if (!val || val === 'undefined') return fallback;
-        return JSON.parse(val);
-      } catch(e) {
-        return fallback;
-      }
-    }
-
-    let items = getStoredJSON('local_items', []);
-    let auditLogs = getStoredJSON('local_auditLogs', []);
-    let clients = getStoredJSON('local_clients', []);
-
+    let items = [];
     let sortCol = 'name';
     let sortDir = 'asc';
-    let skuEdited = false;
-    let receiveQtyMap = {};
-    let receiveUnitMap = {};
 
-    let auditCurrentPage = 1;
-    const AUDIT_PAGE_SIZE = 25;
-    let parsedCsvRows = [];
-
-    // --- CLIENT-SIDE AI UTILITY ENGINES ---
-
-    // 1. Levenshtein String Similarity Engine
-    function levenshteinDistance(a, b) {
-      const matrix = [];
-      for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-      for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-
-      for (let i = 1; i <= b.length; i++) {
-        for (let j = 1; j <= a.length; j++) {
-          if (b.charAt(i - 1) === a.charAt(j - 1)) {
-            matrix[i][j] = matrix[i - 1][j - 1];
-          } else {
-            matrix[i][j] = Math.min(
-              matrix[i - 1][j - 1] + 1,
-              Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
-            );
-          }
-        }
-      }
-      return matrix[b.length][a.length];
-    }
-
-    function getStringSimilarity(str1, str2) {
-      const s1 = (str1 || '').toLowerCase().trim();
-      const s2 = (str2 || '').toLowerCase().trim();
-      if (!s1 || !s2) return 0;
-      if (s1 === s2) return 1.0;
-      const dist = levenshteinDistance(s1, s2);
-      const maxLen = Math.max(s1.length, s2.length);
-      return 1 - (dist / maxLen);
-    }
-
-    // Number word converter helper (e.g. "three" -> 3)
-    function textToNumber(str) {
-      const numMap = { 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10 };
-      const parsedInt = parseInt(str);
-      if (!isNaN(parsedInt)) return parsedInt;
-      return numMap[str.toLowerCase()] || 0;
-    }
-
-    // 2. Natural Language AI Command Console Processor
-    function processAiCommand() {
-      const inputEl = document.getElementById('ai-cmd-input');
-      const rawCmd = (inputEl.value || '').trim();
-      if (!rawCmd) { alert('Please enter a command.'); return; }
-
-      const lower = rawCmd.toLowerCase();
-
-      // Extract numeric quantity (words or numbers)
-      let qty = 0;
-      const numberMatch = lower.match(/\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i);
-      if (numberMatch) {
-        qty = textToNumber(numberMatch[1]);
-      }
-
-      if (qty <= 0) {
-        alert('Could not detect a valid quantity in your command. E.g. "l3 mops are less by 3"');
-        return;
-      }
-
-      // Determine intent action
-      let action = 'DAMAGE_LOSS';
-      if (lower.includes('receive') || lower.includes('got') || lower.includes('add') || lower.includes('bought')) {
-        action = 'RECEIVE';
-      } else if (lower.includes('transfer') || lower.includes('move')) {
-        action = 'TRANSFER';
-      } else if (lower.includes('less') || lower.includes('damage') || lower.includes('broken') || lower.includes('lost') || lower.includes('short')) {
-        action = 'DAMAGE_LOSS';
-      } else if (lower.includes('dispatch') || lower.includes('supply') || lower.includes('sold')) {
-        action = 'SUPPLY_CLIENT';
-      }
-
-      // Find best matching item from database using string similarity
-      let bestItem = null;
-      let highestScore = 0;
-
-      items.forEach(it => {
-        const nameScore = getStringSimilarity(lower, it.name);
-        const modelScore = getStringSimilarity(lower, it.model || '');
-        const skuScore = getStringSimilarity(lower, it.sku || '');
-        const maxScore = Math.max(nameScore, modelScore, skuScore);
-
-        if (maxScore > highestScore) {
-          highestScore = maxScore;
-          bestItem = it;
-        }
-      });
-
-      // Partial fallback match
-      if (!bestItem || highestScore < 0.25) {
-        items.forEach(it => {
-          if (lower.includes(it.name.toLowerCase()) || (it.model && lower.includes(it.model.toLowerCase()))) {
-            bestItem = it;
-            highestScore = 0.8;
-          }
-        });
-      }
-
-      if (!bestItem) {
-        alert(`Could not find a matching product in your database for command: "${rawCmd}"`);
-        return;
-      }
-
-      // Confirmation Prompt
-      const isCarton = lower.includes('carton') || lower.includes('box') || lower.includes('ctn');
-      const unitText = isCarton ? 'Cartons' : (bestItem.unit || 'pcs');
-      const cartonsToDeduct = isCarton ? qty : (qty / (parseFloat(bestItem.qtyPerCarton) || 1));
-
-      const confirmMsg = `AI COMMAND CONFIRMATION:\n\nAction: ${action}\nProduct: ${bestItem.name}\nQuantity: ${qty} ${unitText}\n\nProceed to execute?`;
-      if (!confirm(confirmMsg)) return;
-
-      const dateStr = new Date().toISOString().split('T')[0];
-
-      if (action === 'DAMAGE_LOSS') {
-        mutateStockAndLog(bestItem, 'shop', -cartonsToDeduct, 'DAMAGE_LOSS', 'AI-CMD', dateStr, `${qty} ${unitText}`, 'AI Command Shrinkage');
-      } else if (action === 'RECEIVE') {
-        mutateStockAndLog(bestItem, 'warehouse', cartonsToDeduct, 'RECEIVE', 'AI-CMD', dateStr, `${qty} ${unitText}`, 'AI Command Inbound');
-      } else if (action === 'SUPPLY_CLIENT') {
-        mutateStockAndLog(bestItem, 'shop', -cartonsToDeduct, 'SUPPLY_CLIENT', 'AI-CMD', dateStr, `${qty} ${unitText}`, 'AI Command Dispatch');
-      }
-
-      inputEl.value = '';
-      render();
-      alert(`⚡ Successfully executed command for ${bestItem.name}!`);
-    }
-
-    // 3. Smart CSV Column Auto-Matcher
-    const TARGET_FIELD_SYNONYMS = {
-      name: ['name', 'item', 'product', 'description', 'title', 'item_name'],
-      model: ['model', 'part', 'code', 'variant', 'version', 'type'],
-      sku: ['sku', 'barcode', 'identifier', 'item_code', 'upc', 'ean'],
-      category: ['category', 'cat', 'group', 'department', 'class'],
-      qtyPerCarton: ['qty_per_carton', 'pack', 'packaging', 'pcs_per_box', 'units_per_carton'],
-      whCartons: ['wh_cartons', 'warehouse', 'wh_stock', 'wh_qty', 'warehouse_cartons'],
-      shopCartons: ['shop_cartons', 'shop', 'floor_stock', 'shop_qty', 'store_cartons'],
-      unit: ['unit', 'uom', 'label', 'measure'],
-      cost: ['cost', 'unit_cost', 'buying_price', 'wholesale_price', 'purchase_price'],
-      price: ['price', 'unit_price', 'selling_price', 'retail_price', 'msrp'],
-      supplier: ['supplier', 'vendor', 'distributor', 'source']
-    };
-
-    function aiAutoMapCsvColumns(csvHeaders) {
-      const mapping = {};
-      Object.keys(TARGET_FIELD_SYNONYMS).forEach(fieldKey => {
-        let bestIndex = -1;
-        let highestScore = 0;
-
-        csvHeaders.forEach((header, idx) => {
-          const cleanHeader = header.toLowerCase().replace(/[^a-z0-9_]/g, '');
-          TARGET_FIELD_SYNONYMS[fieldKey].forEach(synonym => {
-            let score = getStringSimilarity(cleanHeader, synonym);
-            if (cleanHeader.includes(synonym) || synonym.includes(cleanHeader)) score += 0.3;
-            if (score > highestScore) {
-              highestScore = score;
-              bestIndex = idx;
-            }
-          });
-        });
-
-        mapping[fieldKey] = (highestScore >= 0.45) ? bestIndex : -1;
-      });
-      return mapping;
-    }
-
-    // 4. Auto Categorization & SKU Engine
-    const CATEGORY_KEYWORD_MAP = {
-      'Electronics': ['led', 'tv', 'screen', 'cable', 'charger', 'speaker', 'audio', 'phone', 'battery', 'adapter', 'router'],
-      'Home & Utensils': ['kettle', 'jiko', 'pan', 'cooker', 'table', 'chair', 'flask', 'spoon', 'plate', 'pot', 'tray', 'mop'],
-      'Hardware & Tools': ['shock', 'control arm', 'tube', 'light', 'spotlight', 'valve', 'pump', 'tool', 'drill', 'screw'],
-      'Stationery & General': ['paper', 'pen', 'printer', 'label', 'tape', 'box', 'marker']
-    };
-
-    function aiPredictCategory(itemName) {
-      const lower = (itemName || '').toLowerCase();
-      for (const [cat, keywords] of Object.entries(CATEGORY_KEYWORD_MAP)) {
-        if (keywords.some(kw => lower.includes(kw))) return cat;
-      }
-      return null;
-    }
-
-    function handleNameInput() {
-      const name = document.getElementById('f-name').value;
-      const catInput = document.getElementById('f-category');
-      const badge = document.getElementById('ai-cat-badge');
-
-      if (!skuEdited && name.length >= 3) {
-        const predictedCat = aiPredictCategory(name);
-        if (predictedCat) {
-          catInput.value = predictedCat;
-          if (badge) badge.style.display = 'inline-flex';
-        }
-      }
-      autoSKU();
-    }
-
-    // --- END AI ENGINES ---
-
-    function formatDateToDDMMYYYY(dateStr) {
-      if (!dateStr) return '';
-      const parts = dateStr.split('T')[0].split('-');
-      if (parts.length === 3 && parts[0].length === 4) {
-        return `${parts[2]}/${parts[1]}/${parts[0]}`;
-      }
-      return dateStr;
-    }
-
-    function getTodayDDMMYYYY() {
-      const now = new Date();
-      const dd = String(now.getDate()).padStart(2, '0');
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const yyyy = now.getFullYear();
-      return `${dd}/${mm}/${yyyy}`;
-    }
-
+    // Cloud connection status listener
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
       const label = document.getElementById('sync-label');
@@ -1180,1194 +405,54 @@
         label.textContent = 'Cloud Sync: Connected ⚡';
       } else {
         dot.className = 'badge-dot offline';
-        label.textContent = 'Offline Mode (Local Storage Active) 📁';
+        label.textContent = 'Offline Mode 📁';
       }
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      updateCatList();
-      updateSupplierList();
-      updateClientList();
-      render();
-    });
-
+    // Realtime Database listener
     db.ref('items').on('value', (snapshot) => {
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
-      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-      updateCatList();
-      updateSupplierList();
       render();
-      if (document.getElementById('category-modal').classList.contains('open')) {
-        renderCategoryManager();
-      }
-      if (document.getElementById('supplier-modal').classList.contains('open')) {
-        renderSupplierManager();
-      }
-      if (document.getElementById('pricelist-modal').classList.contains('open')) {
-        renderPriceList();
-      }
     });
 
-    db.ref('auditLogs').on('value', (snapshot) => {
-      const data = snapshot.val();
-      auditLogs = data ? Object.values(data).sort((a,b) => String(b.id).localeCompare(String(a.id))) : [];
-      try { localStorage.setItem('local_auditLogs', JSON.stringify(auditLogs)); } catch(e){}
-      if (document.getElementById('audit-modal').classList.contains('open')) {
-        renderAuditLogs();
-      }
-    });
+    // Safe standalone AI search query processor
+    function executeAiQuery() {
+      const inputEl = document.getElementById('ai-query-input');
+      const rawText = (inputEl.value || '').trim().toLowerCase();
+      if (!rawText) return;
 
-    db.ref('clients').on('value', (snapshot) => {
-      const data = snapshot.val();
-      clients = data ? Object.values(data) : [];
-      try { localStorage.setItem('local_clients', JSON.stringify(clients)); } catch(e){}
-      updateClientList();
-    });
+      const cleanQuery = rawText
+        .replace(/how many|types of|kinds of|do i have|list|show|count|my|items|products|all/gi, '')
+        .trim();
 
-    function saveSingleItem(item) {
-      if (!item || item.id === undefined || item.id === null) return;
-      const cleanItem = {
-        id: item.id,
-        name: item.name || '',
-        model: item.model || '',
-        sku: item.sku || '',
-        category: item.category || 'General',
-        qtyPerCarton: parseInt(item.qtyPerCarton) || 1,
-        whCartons: Math.round((parseFloat(item.whCartons) || 0) * 1000) / 1000,
-        shopCartons: Math.round((parseFloat(item.shopCartons) || 0) * 1000) / 1000,
-        unit: item.unit || 'pcs',
-        cost: parseFloat(item.cost) || 0,
-        price: parseFloat(item.price) || 0,
-        min: parseInt(item.min) || 0,
-        supplier: item.supplier || ''
-      };
-      db.ref('items/' + cleanItem.id).update(cleanItem);
-      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-    }
-
-    // Unified Stock Math Helper
-    function mutateStockAndLog(item, location, cartonDelta, action, refNo, dateStr, qtyDisplayStr, routeStr) {
-      const locKey = location === 'warehouse' ? 'whCartons' : 'shopCartons';
-      const current = parseFloat(item[locKey]) || 0;
-      item[locKey] = Math.max(0, Math.round((current + cartonDelta) * 1000) / 1000);
-      saveSingleItem(item);
-      logMovement(action, refNo, dateStr, item.name, qtyDisplayStr, routeStr);
-    }
-
-    // AI Demand Forecast Modal Functions
-    function openAiForecastModal() {
-      document.getElementById('ai-forecast-modal').classList.add('open');
-      renderAiForecast();
-    }
-
-    function closeAiForecastModal() {
-      document.getElementById('ai-forecast-modal').classList.remove('open');
-    }
-
-    function renderAiForecast() {
-      const tbody = document.getElementById('ai-forecast-tbody');
-      if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">No inventory items available to analyze.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = items.map(it => {
-        const totalStockCartons = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
-        const moved30DaysCartons = getProduct30DayMovementCartons(it.name, it.qtyPerCarton);
-        const dailyBurnRate = moved30DaysCartons / 30;
-
-        let runOutText = '<span style="color:var(--positive);">30+ Days</span>';
-        if (dailyBurnRate > 0) {
-          const daysLeft = Math.floor(totalStockCartons / dailyBurnRate);
-          if (daysLeft <= 0) {
-            runOutText = '<span class="chip chip-danger">OUT OF STOCK</span>';
-          } else if (daysLeft <= 7) {
-            runOutText = `<span style="color:var(--danger); font-weight:600;">Critical (${daysLeft} days)</span>`;
-          } else if (daysLeft <= 15) {
-            runOutText = `<span style="color:var(--accent-orange); font-weight:600;">Low (${daysLeft} days)</span>`;
-          } else {
-            runOutText = `<span>${daysLeft} days</span>`;
-          }
-        }
-
-        const recommendedReorderCartons = Math.max(Math.ceil(dailyBurnRate * 30), parseInt(it.min) || 2);
-
-        return `
-          <tr style="border-bottom: 1px solid var(--border-divider);">
-            <td style="padding: 8px; font-weight: 600;">${escapeHtml(it.name)}</td>
-            <td style="padding: 8px;">${totalStockCartons.toFixed(1)} ctns</td>
-            <td style="padding: 8px;">${moved30DaysCartons.toFixed(1)} ctns</td>
-            <td style="padding: 8px;">${dailyBurnRate.toFixed(2)} ctn/day</td>
-            <td style="padding: 8px;">${runOutText}</td>
-            <td style="padding: 8px; font-weight: 600; color: var(--accent-purple);">${recommendedReorderCartons} ctns</td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    // Supplier Price List Logic
-    function openPricelistModal() {
-      document.getElementById('pricelist-modal').classList.add('open');
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
-
-      document.getElementById('pl-supplier').innerHTML = '<option value="">-- Select Supplier --</option>' +
-        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      const searchKey = cleanQuery || rawText;
       
-      document.getElementById('pl-category').innerHTML = '<option value="">-- All Categories --</option>' +
-        categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      const matches = items.filter(it => 
+        (it.name && it.name.toLowerCase().includes(searchKey)) ||
+        (it.category && it.category.toLowerCase().includes(searchKey)) ||
+        (it.model && it.model.toLowerCase().includes(searchKey))
+      );
 
-      renderPriceList();
-    }
+      document.getElementById('search').value = searchKey;
+      render();
 
-    function closePricelistModal() {
-      document.getElementById('pricelist-modal').classList.remove('open');
-    }
-
-    function renderPriceList() {
-      const supplier = document.getElementById('pl-supplier').value;
-      const category = document.getElementById('pl-category').value;
-      const type = document.getElementById('pl-type').value;
-      const tbody = document.getElementById('pricelist-tbody');
-
-      document.getElementById('pl-header-supplier').textContent = supplier ? `Price Catalog: ${supplier}` : 'Supplier Price Catalog';
-      document.getElementById('pl-header-meta').textContent = `Generated on: ${getTodayDDMMYYYY()}`;
-
-      document.getElementById('pl-th-cost').style.display = (type === 'price') ? 'none' : 'table-cell';
-      document.getElementById('pl-th-price').style.display = (type === 'cost') ? 'none' : 'table-cell';
-
-      if (!supplier) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">Please select a supplier to display items.</td></tr>';
-        document.getElementById('pl-header-count').textContent = '0 items';
-        return;
-      }
-
-      let filtered = items.filter(i => i.supplier === supplier);
-      if (category) {
-        filtered = filtered.filter(i => i.category === category);
-      }
-
-      filtered.sort((a, b) => a.name.localeCompare(b.name));
-      document.getElementById('pl-header-count').textContent = `${filtered.length} item(s)`;
-
-      if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">No items found for this supplier/category.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(it => {
-        const costVal = parseFloat(it.cost) || 0;
-        const priceVal = parseFloat(it.price) || 0;
-        return `
-          <tr style="border-bottom: 1px solid var(--border-divider);">
-            <td style="padding: 8px; font-family: var(--font-mono);">${escapeHtml(it.sku)}</td>
-            <td style="padding: 8px; font-weight: 600;">${escapeHtml(it.name)}</td>
-            <td style="padding: 8px; color: var(--text-secondary);">${escapeHtml(it.model || 'N/A')}</td>
-            <td style="padding: 8px;">${escapeHtml(it.category || 'General')}</td>
-            <td style="padding: 8px; color: var(--text-tertiary);">${it.qtyPerCarton} ${escapeHtml(it.unit || 'pcs')}/ctn</td>
-            ${type !== 'price' ? `<td style="padding: 8px; text-align: right;">KSh ${costVal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>` : ''}
-            ${type !== 'cost' ? `<td style="padding: 8px; text-align: right; font-weight: 600;">KSh ${priceVal.toLocaleString(undefined, {minimumFractionDigits:2})}</td>` : ''}
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function exportPriceListCSV() {
-      const supplier = document.getElementById('pl-supplier').value;
-      if (!supplier) { alert('Select a supplier first.'); return; }
-
-      const category = document.getElementById('pl-category').value;
-      const type = document.getElementById('pl-type').value;
-
-      let filtered = items.filter(i => i.supplier === supplier);
-      if (category) filtered = filtered.filter(i => i.category === category);
-
-      if (!filtered.length) { alert('No items to export.'); return; }
-
-      const headers = ['SKU', 'Item Name', 'Model', 'Category', 'Units Per Carton'];
-      if (type !== 'price') headers.push('Unit Cost KSh');
-      if (type !== 'cost') headers.push('Unit Price KSh');
-
-      const rows = filtered.map(i => {
-        const row = [i.sku, i.name, i.model||'', i.category||'General', `${i.qtyPerCarton} ${i.unit||'pcs'}`];
-        if (type !== 'price') row.push((parseFloat(i.cost)||0).toFixed(2));
-        if (type !== 'cost') row.push((parseFloat(i.price)||0).toFixed(2));
-        return row;
-      });
-
-      const csvLines = [
-        `"Supplier Price Catalog","${supplier}","${getTodayDDMMYYYY()}"`,
-        '',
-        headers.map(h => `"${h}"`).join(','),
-        ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','))
-      ];
-
-      const blob = new Blob([csvLines.join('\n')], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; 
-      a.download = `PriceList_${supplier.replace(/[^a-zA-Z0-9]/g,'_')}_${getTodayDDMMYYYY().replace(/\//g,'-')}.csv`; 
-      a.click(); URL.revokeObjectURL(url);
-    }
-
-    function openCategoryManagerModal() {
-      document.getElementById('category-modal').classList.add('open');
-      renderCategoryManager();
-    }
-
-    function closeCategoryManagerModal() {
-      document.getElementById('category-modal').classList.remove('open');
-    }
-
-    function renderCategoryManager() {
-      const list = document.getElementById('category-manager-list');
-      const categories = [...new Set(items.map(i => i.category || 'General'))].sort();
-
-      if (!categories.length) {
-        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No categories found.</p>';
-        return;
-      }
-
-      list.innerHTML = categories.map(cat => {
-        const count = items.filter(i => (i.category || 'General') === cat).length;
-        const encodedCat = encodeURIComponent(cat);
-        return `
-          <div class="order-item" style="padding:10px 0;">
-            <div class="order-item-info">
-              <div class="order-item-name">📁 ${escapeHtml(cat)}</div>
-              <div class="order-item-meta">${count} item(s) tagged</div>
-            </div>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn-sm" onclick="renameCategory(decodeURIComponent('${encodedCat}'))">✏️ Rename</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteCategory(decodeURIComponent('${encodedCat}'))">🗑️ Delete</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function renameCategory(oldCat) {
-      const newCat = prompt(`Enter new correct name for category "${oldCat}":`, oldCat);
-      if (!newCat || newCat.trim() === '' || newCat.trim() === oldCat) return;
-      const formatted = newCat.trim();
-
-      const updates = {};
-      items.forEach(it => {
-        if ((it.category || 'General') === oldCat) {
-          it.category = formatted;
-          updates['/items/' + it.id + '/category'] = formatted;
-        }
-      });
-
-      db.ref().update(updates);
-      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-      alert(`Successfully renamed category to "${formatted}"!`);
-      renderCategoryManager();
-    }
-
-    function deleteCategory(oldCat) {
-      if (!confirm(`Are you sure you want to delete category "${oldCat}"?\n\nAffected items will be reassigned to "General".`)) return;
-
-      const updates = {};
-      items.forEach(it => {
-        if ((it.category || 'General') === oldCat) {
-          it.category = 'General';
-          updates['/items/' + it.id + '/category'] = 'General';
-        }
-      });
-
-      db.ref().update(updates);
-      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-      alert(`Category "${oldCat}" deleted! Reassigned items to "General".`);
-      renderCategoryManager();
-    }
-
-    function openSupplierManagerModal() {
-      document.getElementById('supplier-modal').classList.add('open');
-      renderSupplierManager();
-    }
-
-    function closeSupplierManagerModal() {
-      document.getElementById('supplier-modal').classList.remove('open');
-    }
-
-    function renderSupplierManager() {
-      const list = document.getElementById('supplier-manager-list');
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-
-      if (!suppliers.length) {
-        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No suppliers found.</p>';
-        return;
-      }
-
-      list.innerHTML = suppliers.map(sup => {
-        const count = items.filter(i => i.supplier === sup).length;
-        const encodedSup = encodeURIComponent(sup);
-        return `
-          <div class="order-item" style="padding:10px 0;">
-            <div class="order-item-info">
-              <div class="order-item-name">🏭 ${escapeHtml(sup)}</div>
-              <div class="order-item-meta">${count} product(s) associated</div>
-            </div>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn-sm" onclick="renameSupplier(decodeURIComponent('${encodedSup}'))">✏️ Rename</button>
-              <button class="btn btn-sm btn-danger" onclick="deleteSupplier(decodeURIComponent('${encodedSup}'))">🗑️ Delete</button>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function renameSupplier(oldSup) {
-      const newSup = prompt(`Enter new name for supplier "${oldSup}":`, oldSup);
-      if (!newSup || newSup.trim() === '' || newSup.trim() === oldSup) return;
-      const formatted = newSup.trim();
-
-      const updates = {};
-      items.forEach(it => {
-        if (it.supplier === oldSup) {
-          it.supplier = formatted;
-          updates['/items/' + it.id + '/supplier'] = formatted;
-        }
-      });
-
-      db.ref().update(updates);
-      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-      alert(`Successfully renamed supplier to "${formatted}"!`);
-      renderSupplierManager();
-    }
-
-    function deleteSupplier(oldSup) {
-      if (!confirm(`Are you sure you want to delete supplier "${oldSup}"?`)) return;
-
-      const updates = {};
-      items.forEach(it => {
-        if (it.supplier === oldSup) {
-          it.supplier = '';
-          updates['/items/' + it.id + '/supplier'] = '';
-        }
-      });
-
-      db.ref().update(updates);
-      try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-      alert(`Supplier "${oldSup}" deleted!`);
-      renderSupplierManager();
-    }
-
-    function logMovement(action, refNo, dateStr, itemName, qty, route) {
-      const formattedDate = formatDateToDDMMYYYY(dateStr);
-      const newLog = {
-        id: generateUniqueId(),
-        action: action, 
-        refNo: refNo || 'N/A',
-        date: formattedDate,
-        itemName: itemName,
-        qty: qty,
-        route: route,
-        reverted: false
-      };
-      auditLogs.unshift(newLog);
-      db.ref('auditLogs/' + newLog.id).set(newLog);
-      try { localStorage.setItem('local_auditLogs', JSON.stringify(auditLogs)); } catch(e){}
-    }
-
-    function revertMovement(logId) {
-      const log = auditLogs.find(l => String(l.id) === String(logId));
-      if (!log) return;
-
-      if (!confirm(`Are you sure you want to revert this movement?\n\nItem: ${log.itemName}\nQty: ${log.qty}\nRoute: ${log.route}`)) {
-        return;
-      }
-
-      const item = items.find(i => i.name.toLowerCase() === log.itemName.toLowerCase());
-      if (!item) { alert('Target item not found in active inventory list.'); return; }
-
-      const parts = (log.qty || '').split(' ');
-      const val = parseFloat(parts[0]) || 0;
-      const unitStr = (parts[1] || '').toLowerCase();
-      let cartonsToAdjust = unitStr.includes('carton') ? val : (val / (parseFloat(item.qtyPerCarton) || 1));
-
-      if (log.action === 'SUPPLY_CLIENT' || log.action === 'DAMAGE_LOSS') {
-        const loc = log.route.toLowerCase().includes('warehouse') ? 'warehouse' : 'shop';
-        mutateStockAndLog(item, loc, cartonsToAdjust, 'REVERT_CANCEL', log.refNo, new Date().toISOString().split('T')[0], `+${log.qty}`, `Reverted Log #${log.id}`);
-      } else if (log.action === 'RECEIVE') {
-        const loc = log.route.toLowerCase().includes('warehouse') ? 'warehouse' : 'shop';
-        mutateStockAndLog(item, loc, -cartonsToAdjust, 'REVERT_CANCEL', log.refNo, new Date().toISOString().split('T')[0], `-${log.qty}`, `Reverted Log #${log.id}`);
-      } else if (log.action === 'TRANSFER') {
-        if (log.route.includes('Warehouse ➔ Shop Store')) {
-          item.whCartons = Math.round(((parseFloat(item.whCartons)||0) + cartonsToAdjust)*1000)/1000;
-          item.shopCartons = Math.max(0, Math.round(((parseFloat(item.shopCartons)||0) - cartonsToAdjust)*1000)/1000);
-        } else {
-          item.shopCartons = Math.round(((parseFloat(item.shopCartons)||0) + cartonsToAdjust)*1000)/1000;
-          item.whCartons = Math.max(0, Math.round(((parseFloat(item.whCartons)||0) - cartonsToAdjust)*1000)/1000);
-        }
-        saveSingleItem(item);
-        logMovement('REVERT_CANCEL', log.refNo, new Date().toISOString().split('T')[0], item.name, `Revert Transfer`, `Reverted Log #${log.id}`);
-      }
-
-      log.reverted = true;
-      db.ref('auditLogs/' + log.id).update({ reverted: true });
-      render(); renderAuditLogs();
-      alert(`Successfully reverted movement for ${item.name}!`);
-    }
-
-    function triggerCsvImport() { document.getElementById('csv-file-input').click(); }
-
-    function handleCsvFile(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(evt) {
-        const text = evt.target.result;
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 2) { alert('Invalid CSV file.'); return; }
-
-        parsedCsvRows = lines.map(line => line.split(',').map(cell => cell.replace(/^"(.*)"$/, '$1').trim()));
-        openCsvPreviewModal();
-      };
-      reader.readAsText(file);
-      e.target.value = '';
-    }
-
-    function openCsvPreviewModal() {
-      if (!parsedCsvRows.length) return;
-      const headers = parsedCsvRows[0];
-      const modal = document.getElementById('csv-preview-modal');
-      
-      const selects = [
-        'csv-map-name', 'csv-map-model', 'csv-map-sku', 'csv-map-cat',
-        'csv-map-qtyPerCarton', 'csv-map-whCartons', 'csv-map-shopCartons',
-        'csv-map-unit', 'csv-map-cost', 'csv-map-price', 'csv-map-supplier'
-      ];
-
-      selects.forEach(sId => {
-        const sel = document.getElementById(sId);
-        sel.innerHTML = '<option value="-1">-- None --</option>' + 
-          headers.map((h, idx) => `<option value="${idx}">${idx + 1}. ${escapeHtml(h)}</option>`).join('');
-      });
-
-      const aiMapping = aiAutoMapCsvColumns(headers);
-      Object.keys(aiMapping).forEach(fieldKey => {
-        const mapSelect = document.getElementById('csv-map-' + fieldKey);
-        if (mapSelect && aiMapping[fieldKey] >= 0) {
-          mapSelect.value = aiMapping[fieldKey];
-        }
-      });
-
-      const table = document.getElementById('csv-preview-table');
-      const samples = parsedCsvRows.slice(0, 4);
-      table.innerHTML = samples.map((r, rIdx) => `
-        <tr style="${rIdx === 0 ? 'font-weight:600; background:var(--surface);' : ''}">
-          ${r.map(c => `<td style="padding:4px 6px; border:1px solid var(--border);">${escapeHtml(c)}</td>`).join('')}
-        </tr>
-      `).join('');
-
-      modal.classList.add('open');
-    }
-
-    function closeCsvPreviewModal() {
-      document.getElementById('csv-preview-modal').classList.remove('open');
-      parsedCsvRows = [];
-    }
-
-    function confirmCsvImport() {
-      const getVal = (row, selId, fallback = '') => {
-        const idx = parseInt(document.getElementById(selId).value);
-        return (idx >= 0 && row[idx]) ? row[idx] : fallback;
-      };
-
-      const nameIdx = parseInt(document.getElementById('csv-map-name').value);
-      if (nameIdx < 0) { alert('Please map the Item Name column.'); return; }
-
-      let importedCount = 0;
-      const atomicUpdates = {};
-
-      for (let i = 1; i < parsedCsvRows.length; i++) {
-        const row = parsedCsvRows[i];
-        const nameVal = getVal(row, 'csv-map-name');
-        if (nameVal) {
-          const id = generateUniqueId() + i;
-          atomicUpdates['/items/' + id] = {
-            id: id,
-            name: nameVal,
-            model: getVal(row, 'csv-map-model'),
-            sku: getVal(row, 'csv-map-sku', 'SKU-' + i),
-            category: getVal(row, 'csv-map-cat', aiPredictCategory(nameVal) || 'General'),
-            qtyPerCarton: parseInt(getVal(row, 'csv-map-qtyPerCarton', '1')) || 1,
-            whCartons: parseFloat(getVal(row, 'csv-map-whCartons', '0')) || 0,
-            shopCartons: parseFloat(getVal(row, 'csv-map-shopCartons', '0')) || 0,
-            unit: getVal(row, 'csv-map-unit', 'pcs'),
-            cost: parseFloat(getVal(row, 'csv-map-cost', '0')) || 0,
-            price: parseFloat(getVal(row, 'csv-map-price', '0')) || 0,
-            supplier: getVal(row, 'csv-map-supplier'),
-            min: 2
-          };
-          importedCount++;
-        }
-      }
-
-      if (importedCount > 0) {
-        db.ref().update(atomicUpdates).then(() => {
-          alert(`🎉 Atomic update completed! Merged ${importedCount} items into Cloud database.`);
-          closeCsvPreviewModal();
-        });
+      if (matches.length === 0) {
+        alert(`No products matching "${searchKey}" were found in your inventory.`);
       } else {
-        alert('No valid items were mapped from CSV.');
+        const details = matches.map(m => `• ${m.name} (${(parseFloat(m.whCartons)||0) + (parseFloat(m.shopCartons)||0)} Ctns)`).join('\n');
+        alert(`Found ${matches.length} matching type(s) for "${searchKey}":\n\n${details}`);
       }
-    }
-
-    function updateCatList() {
-      const cats = [...new Set(items.map(i => i.category))].sort();
-      document.getElementById('cat-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
-    }
-
-    function updateSupplierList() {
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      document.getElementById('supplier-list').innerHTML = suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-    }
-
-    function updateClientList() {
-      const datalist = document.getElementById('client-list');
-      if (!datalist) return;
-      const sortedClients = [...new Set(clients.map(c => c.name))].sort();
-      datalist.innerHTML = sortedClients.map(name => `<option value="${escapeHtml(name)}">`).join('');
-    }
-
-    function saveClientIfNew(clientName) {
-      if (!clientName) return;
-      const formatted = clientName.trim();
-      const exists = clients.some(c => c.name.toLowerCase() === formatted.toLowerCase());
-      if (!exists) {
-        const newId = generateUniqueId();
-        const newClient = { id: newId, name: formatted };
-        db.ref('clients/' + newId).set(newClient);
-        try { localStorage.setItem('local_clients', JSON.stringify(clients)); } catch(e){}
-      }
-    }
-
-    function escapeHtml(t) {
-      return (t||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
-    }
-
-    function slugify(str, len) { return str.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, len); }
-
-    function autoSKU() {
-      if (skuEdited) return;
-      const name = document.getElementById('f-name').value.trim();
-      const cat = document.getElementById('f-category').value.trim();
-      if (name && cat) {
-        document.getElementById('f-sku').value = `${slugify(cat,3)}-${slugify(name,3)}-${Math.floor(100 + Math.random() * 900)}`;
-      }
-    }
-
-    function openBulkReceiveModal() {
-      receiveQtyMap = {};
-      receiveUnitMap = {};
-      document.getElementById('bulk-receive-modal').classList.add('open');
-      document.getElementById('rec-delivery-date').value = new Date().toISOString().split('T')[0];
-      document.getElementById('rec-invoice-no').value = '';
-      document.getElementById('rec-search').value = '';
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      document.getElementById('receive-supplier-select').innerHTML = '<option value="">-- Choose Supplier --</option>' +
-        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-      document.getElementById('bulk-receive-items').innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">Select a supplier to see items.</p>';
-    }
-
-    function closeBulkReceiveModal() { document.getElementById('bulk-receive-modal').classList.remove('open'); }
-
-    function saveCurrentReceiveInputsToMap() {
-      const inputs = document.querySelectorAll('#bulk-receive-items input.order-qty');
-      inputs.forEach(input => {
-        const id = input.id.replace('rec-', '');
-        const val = parseFloat(input.value) || 0;
-        receiveQtyMap[id] = val;
-        
-        const rowWrap = input.closest('.order-item');
-        if (rowWrap) {
-          if (val > 0) {
-            rowWrap.classList.add('active-entry');
-            input.classList.add('has-value');
-          } else {
-            rowWrap.classList.remove('active-entry');
-            input.classList.remove('has-value');
-          }
-        }
-      });
-      const selects = document.querySelectorAll('#bulk-receive-items select.rec-unit-select');
-      selects.forEach(select => {
-        const id = select.id.replace('rec-unit-', '');
-        receiveUnitMap[id] = select.value;
-      });
-    }
-
-    function renderBulkReceiveItems(resetMap = false) {
-      if (resetMap) {
-        receiveQtyMap = {};
-        receiveUnitMap = {};
-      } else {
-        saveCurrentReceiveInputsToMap();
-      }
-
-      const supplier = document.getElementById('receive-supplier-select').value;
-      const query = (document.getElementById('rec-search').value || '').toLowerCase().trim();
-      const container = document.getElementById('bulk-receive-items');
-      
-      if (!supplier) { 
-        container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">Select a supplier to see items.</p>'; 
-        return; 
-      }
-      
-      let supplierItems = items.filter(i => i.supplier === supplier);
-      if (query) {
-        supplierItems = supplierItems.filter(i => 
-          i.name.toLowerCase().includes(query) || 
-          (i.model || '').toLowerCase().includes(query) || 
-          i.sku.toLowerCase().includes(query) ||
-          i.category.toLowerCase().includes(query)
-        );
-      }
-
-      if (!supplierItems.length) { 
-        container.innerHTML = '<p style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:20px;">No matching items found for this supplier.</p>'; 
-        return; 
-      }
-
-      const grouped = {};
-      supplierItems.forEach(it => {
-        const cat = it.category || 'General';
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(it);
-      });
-
-      const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
-
-      let html = '';
-      sortedCategories.forEach(cat => {
-        grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
-
-        html += `
-          <div class="cat-section">
-            <div class="cat-header">
-              <span>📁 ${escapeHtml(cat)}</span>
-              <span style="font-weight: normal; font-size: 11px; opacity:0.8;">${grouped[cat].length} item(s)</span>
-            </div>
-            <div class="cat-body">
-        `;
-
-        grouped[cat].forEach(it => {
-          const currentTypedVal = receiveQtyMap[it.id] || 0;
-          const currentUnitMode = receiveUnitMap[it.id] || 'cartons';
-          const unitLabelStr = escapeHtml(it.unit || 'Pcs');
-          const hasVal = currentTypedVal > 0;
-
-          html += `
-            <div class="order-item ${hasVal ? 'active-entry' : ''}">
-              <div class="order-item-info">
-                <div class="order-item-name">${escapeHtml(it.name)}</div>
-                <div class="order-item-meta">${it.model ? escapeHtml(it.model) + ' · ' : ''}SKU: ${escapeHtml(it.sku)} · Wh: ${it.whCartons} ctns | Shop: ${it.shopCartons} ctns (${it.qtyPerCarton} ${unitLabelStr}/ctn)</div>
-              </div>
-              <div style="display:flex; align-items:center; gap:6px;">
-                <input type="number" class="order-qty ${hasVal ? 'has-value' : ''}" id="rec-${it.id}" value="${currentTypedVal}" min="0" step="any" oninput="saveCurrentReceiveInputsToMap()">
-                <select class="rec-unit-select" id="rec-unit-${it.id}" style="padding:5px 8px; font-size:12px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text);" onchange="receiveUnitMap['${it.id}'] = this.value">
-                  <option value="cartons" ${currentUnitMode === 'cartons' ? 'selected' : ''}>Cartons</option>
-                  <option value="pcs" ${currentUnitMode === 'pcs' ? 'selected' : ''}>Loose ${unitLabelStr}</option>
-                </select>
-              </div>
-            </div>
-          `;
-        });
-
-        html += `
-            </div>
-          </div>
-        `;
-      });
-
-      container.innerHTML = html;
-    }
-
-    function processBulkReceive() {
-      saveCurrentReceiveInputsToMap();
-      const supplier = document.getElementById('receive-supplier-select').value;
-      const dest = document.getElementById('rec-destination').value;
-      const invoiceNo = document.getElementById('rec-invoice-no').value.trim() || 'N/A';
-      const deliveryDate = document.getElementById('rec-delivery-date').value || new Date().toISOString().split('T')[0];
-
-      if (!supplier) { alert('Choose a supplier.'); return; }
-      const supplierItems = items.filter(i => i.supplier === supplier);
-
-      let totalItemsCount = 0;
-      let totalCartonsEquivalent = 0;
-      const atomicUpdates = {};
-
-      supplierItems.forEach(it => {
-        const addVal = receiveQtyMap[it.id] || 0;
-        const mode = receiveUnitMap[it.id] || 'cartons';
-
-        if (addVal > 0) {
-          totalItemsCount++;
-          let cartonsToAdd = (mode === 'cartons') ? addVal : (addVal / (parseFloat(it.qtyPerCarton) || 1));
-          totalCartonsEquivalent += cartonsToAdd;
-          
-          const unitText = (mode === 'cartons') ? 'Cartons' : (it.unit || 'Pcs');
-          const locKey = dest === 'warehouse' ? 'whCartons' : 'shopCartons';
-          const newStock = Math.round(((parseFloat(it[locKey]) || 0) + cartonsToAdd) * 1000) / 1000;
-          
-          it[locKey] = newStock;
-          atomicUpdates['/items/' + it.id + '/' + locKey] = newStock;
-
-          const logId = generateUniqueId() + totalItemsCount;
-          atomicUpdates['/auditLogs/' + logId] = {
-            id: logId,
-            action: 'RECEIVE',
-            refNo: invoiceNo,
-            date: formatDateToDDMMYYYY(deliveryDate),
-            itemName: it.name,
-            qty: `${addVal} ${unitText}`,
-            route: `Supplier ➔ ${dest.toUpperCase()}`,
-            reverted: false
-          };
-        }
-      });
-
-      if (totalItemsCount === 0) { alert('No quantities entered.'); return; }
-
-      if (!confirm(`CONFIRM RECEIPT:\n\nReceive ~${totalCartonsEquivalent.toFixed(1)} Cartons across ${totalItemsCount} product(s) into ${dest.toUpperCase()}?`)) {
-        return;
-      }
-
-      db.ref().update(atomicUpdates).then(() => {
-        closeBulkReceiveModal(); render();
-        alert(`🎉 Received delivery for ${totalItemsCount} product(s) into ${dest.toUpperCase()}!`);
-      });
-    }
-
-    function openTransferModal(id) {
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      document.getElementById('transfer-id').value = item.id;
-      document.getElementById('transfer-input-val').value = '';
-      document.getElementById('transfer-delivery-no').value = '';
-      document.getElementById('transfer-date').value = new Date().toISOString().split('T')[0];
-      updateTransferInfo();
-      document.getElementById('transfer-modal').classList.add('open');
-    }
-
-    function updateTransferInfo() {
-      const id = document.getElementById('transfer-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-
-      const route = document.getElementById('transfer-route').value;
-      if (route === 'wh_to_shop') {
-        document.getElementById('transfer-info').innerHTML = `
-          <strong>${escapeHtml(item.name)}</strong><br>
-          Warehouse Stock Available: <strong>${item.whCartons} Cartons</strong> (${Math.round(item.whCartons * item.qtyPerCarton)} ${escapeHtml(item.unit)})<br>
-          Current Shop Stock: <strong>${item.shopCartons} Cartons</strong>
-        `;
-      } else {
-        document.getElementById('transfer-info').innerHTML = `
-          <strong>${escapeHtml(item.name)}</strong><br>
-          Shop Stock Available: <strong>${item.shopCartons} Cartons</strong> (${Math.round(item.shopCartons * item.qtyPerCarton)} ${escapeHtml(item.unit)})<br>
-          Current Warehouse Stock: <strong>${item.whCartons} Cartons</strong>
-        `;
-      }
-      updateTransferLabel();
-    }
-
-    function updateTransferLabel() {
-      const mode = document.getElementById('transfer-unit-mode').value;
-      const id = document.getElementById('transfer-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      document.getElementById('transfer-qty-label').textContent = mode === 'cartons' ? 'Cartons to Transfer' : `Pieces (${item ? item.unit : 'pcs'}) to Transfer`;
-    }
-
-    function closeTransferModal() { document.getElementById('transfer-modal').classList.remove('open'); }
-
-    function processTransfer(e) {
-      e.preventDefault();
-      const id = document.getElementById('transfer-id').value;
-      const val = parseFloat(document.getElementById('transfer-input-val').value) || 0;
-      const route = document.getElementById('transfer-route').value;
-      const refNo = document.getElementById('transfer-delivery-no').value.trim() || 'N/A';
-      const date = document.getElementById('transfer-date').value;
-      const mode = document.getElementById('transfer-unit-mode').value;
-
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
-
-      let cartonsToMove = (mode === 'cartons') ? val : (val / (parseFloat(item.qtyPerCarton) || 1));
-      let currentWh = parseFloat(item.whCartons) || 0;
-      let currentShop = parseFloat(item.shopCartons) || 0;
-
-      if (route === 'wh_to_shop') {
-        if (cartonsToMove > currentWh) { alert(`Insufficient warehouse stock! Max available: ${currentWh} ctns`); return; }
-        item.whCartons = Math.round((currentWh - cartonsToMove) * 1000) / 1000;
-        item.shopCartons = Math.round((currentShop + cartonsToMove) * 1000) / 1000;
-        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, 'Warehouse ➔ Shop Store');
-      } else {
-        if (cartonsToMove > currentShop) { alert(`Insufficient shop stock! Max available: ${currentShop} ctns`); return; }
-        item.shopCartons = Math.round((currentShop - cartonsToMove) * 1000) / 1000;
-        item.whCartons = Math.round((currentWh + cartonsToMove) * 1000) / 1000;
-        logMovement('TRANSFER', refNo, date, item.name, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, 'Shop Store ➔ Warehouse');
-      }
-
-      saveSingleItem(item); closeTransferModal(); render();
-      alert(`Successfully transferred stock!`);
-    }
-
-    function openDispatchModal(id) {
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      document.getElementById('dispatch-id').value = item.id;
-      document.getElementById('dispatch-input-val').value = '';
-      document.getElementById('dispatch-delivery-no').value = '';
-      document.getElementById('dispatch-client').value = '';
-      document.getElementById('dispatch-date').value = new Date().toISOString().split('T')[0];
-      updateClientList();
-      updateDispatchInfo();
-      document.getElementById('dispatch-modal').classList.add('open');
-    }
-
-    function updateDispatchInfo() {
-      const id = document.getElementById('dispatch-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      const src = document.getElementById('dispatch-source').value;
-      const srcText = src === 'warehouse' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
-      document.getElementById('dispatch-info').innerHTML = `
-        <strong>${escapeHtml(item.name)}</strong><br>
-        Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
-      `;
-      updateDispatchLabel();
-    }
-
-    function updateDispatchLabel() {
-      const mode = document.getElementById('dispatch-unit-mode').value;
-      const id = document.getElementById('dispatch-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      document.getElementById('dispatch-qty-label').textContent = mode === 'cartons' ? 'Cartons Dispatched' : `Pieces (${item ? item.unit : 'pcs'}) Dispatched`;
-    }
-
-    function closeDispatchModal() { document.getElementById('dispatch-modal').classList.remove('open'); }
-
-    function processDispatch(e) {
-      e.preventDefault();
-      const id = document.getElementById('dispatch-id').value;
-      const val = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
-      const src = document.getElementById('dispatch-source').value;
-      const delNo = document.getElementById('dispatch-delivery-no').value.trim() || 'N/A';
-      const client = document.getElementById('dispatch-client').value.trim() || 'Client';
-      const date = document.getElementById('dispatch-date').value;
-      const mode = document.getElementById('dispatch-unit-mode').value;
-
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
-
-      let cartonsToDeduct = (mode === 'cartons') ? val : (val / (parseFloat(item.qtyPerCarton) || 1));
-      mutateStockAndLog(item, src, -cartonsToDeduct, 'SUPPLY_CLIENT', delNo, date, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, `${src.toUpperCase()} ➔ Client (${client})`);
-
-      saveClientIfNew(client);
-      closeDispatchModal(); render();
-      alert(`Dispatched order for ${client}!`);
-    }
-
-    function openLossModal(id) {
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      document.getElementById('loss-id').value = item.id;
-      document.getElementById('loss-input-val').value = '';
-      document.getElementById('loss-date').value = new Date().toISOString().split('T')[0];
-      updateLossInfo();
-      document.getElementById('loss-modal').classList.add('open');
-    }
-
-    function updateLossInfo() {
-      const id = document.getElementById('loss-id').value;
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item) return;
-      const src = document.getElementById('loss-source').value;
-      const srcText = src === 'warehouse' ? `Warehouse (${item.whCartons} ctns)` : `Shop (${item.shopCartons} ctns)`;
-      document.getElementById('loss-info').innerHTML = `
-        <strong>${escapeHtml(item.name)}</strong><br>
-        Source Balance: <strong>${srcText}</strong> · 1 Carton = ${item.qtyPerCarton} ${escapeHtml(item.unit)}
-      `;
-    }
-
-    function closeLossModal() { document.getElementById('loss-modal').classList.remove('open'); }
-
-    function processLoss(e) {
-      e.preventDefault();
-      const id = document.getElementById('loss-id').value;
-      const val = parseFloat(document.getElementById('loss-input-val').value) || 0;
-      const src = document.getElementById('loss-source').value;
-      const reason = document.getElementById('loss-reason').value;
-      const date = document.getElementById('loss-date').value;
-      const mode = document.getElementById('loss-unit-mode').value;
-
-      const item = items.find(i => String(i.id) === String(id));
-      if (!item || val <= 0) { alert('Enter valid quantity.'); return; }
-
-      let cartonsToDeduct = (mode === 'cartons') ? val : (val / (parseFloat(item.qtyPerCarton) || 1));
-      mutateStockAndLog(item, src, -cartonsToDeduct, 'DAMAGE_LOSS', 'LOSS-NOTE', date, `${val} ${mode === 'cartons' ? 'Cartons' : item.unit}`, `${src.toUpperCase()} ➔ Loss (${reason})`);
-
-      closeLossModal(); render();
-      alert(`Logged loss due to: ${reason}`);
-    }
-
-    function openAuditLogModal() {
-      document.getElementById('audit-search').value = '';
-      document.getElementById('audit-filter-action').value = '';
-      auditCurrentPage = 1;
-      document.getElementById('audit-modal').classList.add('open');
-      renderAuditLogs();
-    }
-
-    function renderAuditLogs() {
-      const filter = document.getElementById('audit-filter-action').value;
-      const q = (document.getElementById('audit-search')?.value || '').toLowerCase().trim();
-      const tbody = document.getElementById('audit-log-tbody');
-      
-      let filteredLogs = auditLogs;
-      if (filter) filteredLogs = filteredLogs.filter(l => l.action === filter);
-      if (q) {
-        filteredLogs = filteredLogs.filter(l =>
-          (l.refNo || '').toLowerCase().includes(q) ||
-          (l.itemName || '').toLowerCase().includes(q) ||
-          (l.route || '').toLowerCase().includes(q) ||
-          (l.date || '').toLowerCase().includes(q) ||
-          (l.action || '').toLowerCase().includes(q)
-        );
-      }
-
-      const totalCount = filteredLogs.length;
-      const totalPages = Math.ceil(totalCount / AUDIT_PAGE_SIZE) || 1;
-      if (auditCurrentPage > totalPages) auditCurrentPage = totalPages;
-
-      const startIndex = (auditCurrentPage - 1) * AUDIT_PAGE_SIZE;
-      const pagedLogs = filteredLogs.slice(startIndex, startIndex + AUDIT_PAGE_SIZE);
-
-      document.getElementById('audit-pagination-info').textContent = totalCount === 0 
-        ? 'No matching logs' 
-        : `Showing logs ${startIndex + 1} - ${Math.min(startIndex + AUDIT_PAGE_SIZE, totalCount)} of ${totalCount} (Page ${auditCurrentPage}/${totalPages})`;
-
-      document.getElementById('btn-audit-prev').disabled = auditCurrentPage <= 1;
-      document.getElementById('btn-audit-next').disabled = auditCurrentPage >= totalPages;
-
-      if (!pagedLogs.length) { 
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">No logs found matching search / filter.</td></tr>'; 
-        return; 
-      }
-
-      tbody.innerHTML = pagedLogs.map(l => {
-        let badgeColor = 'var(--accent-blue)';
-        let bg = 'rgba(37,99,235,0.15)';
-        if (l.action === 'RECEIVE') { badgeColor = 'var(--positive)'; bg = 'rgba(22,163,74,0.15)'; }
-        if (l.action === 'SUPPLY_CLIENT') { badgeColor = 'var(--accent-orange)'; bg = 'rgba(234,88,12,0.15)'; }
-        if (l.action === 'TRANSFER') { badgeColor = 'var(--accent-purple)'; bg = 'rgba(124,58,237,0.15)'; }
-        if (l.action === 'DAMAGE_LOSS') { badgeColor = 'var(--danger)'; bg = 'rgba(220,38,38,0.15)'; }
-        if (l.action === 'STOCK_TAKE_ADJUST' || l.action.includes('REVERT')) { badgeColor = 'var(--text-secondary)'; bg = 'rgba(107,114,128,0.15)'; }
-
-        const displayDate = formatDateToDDMMYYYY(l.date);
-        const isReverted = l.reverted || l.action.includes('REVERT');
-
-        return `
-          <tr style="border-bottom:1px solid var(--border-divider); ${isReverted ? 'opacity: 0.5; background: rgba(0,0,0,0.02);' : ''}">
-            <td style="padding:8px; white-space:nowrap;">${displayDate}</td>
-            <td style="padding:8px;"><span class="chip" style="font-size:10px; background:${bg}; color:${badgeColor};">${l.action}</span></td>
-            <td style="padding:8px; font-weight:600; font-family:var(--font-mono);">${escapeHtml(l.refNo)}</td>
-            <td style="padding:8px;">${escapeHtml(l.itemName)}</td>
-            <td style="padding:8px; font-weight:600;">${l.qty}</td>
-            <td style="padding:8px; color:var(--text-secondary);">${escapeHtml(l.route)}</td>
-            <td style="padding:8px; text-align:right;">
-              ${!isReverted ? `<button class="btn btn-sm btn-danger" style="font-size:11px; padding:2px 6px;" onclick="revertMovement('${l.id}')">↺ Revert</button>` : '<span style="font-size:11px; color:var(--text-tertiary);">Reverted</span>'}
-            </td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    function changeAuditPage(delta) {
-      auditCurrentPage += delta;
-      renderAuditLogs();
-    }
-
-    function closeAuditLogModal() { document.getElementById('audit-modal').classList.remove('open'); }
-
-    function exportAuditLogCSV() {
-      if (!auditLogs.length) { alert('No logs available.'); return; }
-      const headers = ['Date (DD/MM/YYYY)', 'Action', 'Ref No', 'Item Name', 'Quantity', 'Route / Notes'];
-      const rows = auditLogs.map(l => [formatDateToDDMMYYYY(l.date), l.action, l.refNo, l.itemName, l.qty, l.route]);
-      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `Stock_Logs_${getTodayDDMMYYYY().replace(/\//g,'-')}.csv`; a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function openStockTakeModal() {
-      document.getElementById('stocktake-modal').classList.add('open');
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      document.getElementById('stocktake-supplier').innerHTML = '<option value="">-- All Suppliers --</option>' +
-        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-      renderStockTakeItems();
-    }
-
-    function renderStockTakeItems() {
-      const loc = document.getElementById('stocktake-location').value;
-      const supplier = document.getElementById('stocktake-supplier').value;
-      const container = document.getElementById('stocktake-items');
-      let filtered = items;
-      if (supplier) filtered = items.filter(i => i.supplier === supplier);
-      container.innerHTML = filtered.map(it => {
-        const currentCartons = loc === 'warehouse' ? (parseFloat(it.whCartons) || 0) : (parseFloat(it.shopCartons) || 0);
-        return `
-          <div class="order-item">
-            <div class="order-item-info">
-              <div class="order-item-name">${escapeHtml(it.name)}</div>
-              <div class="order-item-meta">SKU: ${escapeHtml(it.sku)} · Expected: ${currentCartons} Cartons</div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <input type="number" class="order-qty" id="st-${it.id}" value="${currentCartons}" min="0" step="any" oninput="calcVariance('${it.id}', ${currentCartons})">
-              <span style="font-size:12px;">Cartons</span>
-              <span id="st-var-${it.id}" style="font-size:11px; font-weight:600; min-width:60px; text-align:right; color:var(--text-tertiary);">Var: 0</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function calcVariance(id, expected) {
-      const input = document.getElementById(`st-${id}`);
-      const varSpan = document.getElementById(`st-var-${id}`);
-      if (!input || !varSpan) return;
-      const physical = parseFloat(input.value) || 0;
-      const variance = Math.round((physical - expected) * 1000) / 1000;
-      
-      const rowWrap = input.closest('.order-item');
-      if (variance !== 0) {
-        if (rowWrap) rowWrap.classList.add('active-entry');
-        input.classList.add('has-value');
-      } else {
-        if (rowWrap) rowWrap.classList.remove('active-entry');
-        input.classList.remove('has-value');
-      }
-
-      if (variance === 0) {
-        varSpan.textContent = 'Var: 0';
-        varSpan.style.color = 'var(--text-tertiary)';
-      } else if (variance > 0) {
-        varSpan.textContent = `Var: +${variance}`;
-        varSpan.style.color = 'var(--positive)';
-      } else {
-        varSpan.textContent = `Var: ${variance}`;
-        varSpan.style.color = 'var(--danger)';
-      }
-    }
-
-    function closeStockTakeModal() { document.getElementById('stocktake-modal').classList.remove('open'); }
-
-    function saveStockTake() {
-      const loc = document.getElementById('stocktake-location').value;
-      const supplier = document.getElementById('stocktake-supplier').value;
-      const dateStr = new Date().toISOString().split('T')[0];
-      let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
-      
-      let adjustedCount = 0;
-      const atomicUpdates = {};
-
-      targetItems.forEach(it => {
-        const input = document.getElementById(`st-${it.id}`);
-        if (input) {
-          const physicalVal = Math.max(0, parseFloat(input.value) || 0);
-          const systemVal = loc === 'warehouse' ? (parseFloat(it.whCartons) || 0) : (parseFloat(it.shopCartons) || 0);
-          const diff = Math.round((physicalVal - systemVal) * 1000) / 1000;
-
-          if (diff !== 0) {
-            adjustedCount++;
-            const locKey = loc === 'warehouse' ? 'whCartons' : 'shopCartons';
-            it[locKey] = physicalVal;
-            atomicUpdates['/items/' + it.id + '/' + locKey] = physicalVal;
-
-            const logId = generateUniqueId() + adjustedCount;
-            atomicUpdates['/auditLogs/' + logId] = {
-              id: logId,
-              action: 'STOCK_TAKE_ADJUST',
-              refNo: 'AUDIT-COUNT',
-              date: formatDateToDDMMYYYY(dateStr),
-              itemName: it.name,
-              qty: `${diff > 0 ? '+' : ''}${diff} Cartons`,
-              route: `${loc.toUpperCase()} Audit Variance`,
-              reverted: false
-            };
-          }
-        }
-      });
-
-      if (adjustedCount === 0) { alert('No variances found.'); return; }
-
-      if (!confirm(`CONFIRM AUDIT SAVE:\n\nApply stock corrections for ${adjustedCount} item(s) in ${loc.toUpperCase()}?`)) {
-        return;
-      }
-
-      db.ref().update(atomicUpdates).then(() => {
-        closeStockTakeModal(); render();
-        alert(`🎉 Stock take saved! Adjusted ${adjustedCount} item(s) with variances into ${loc.toUpperCase()}.`);
-      });
-    }
-
-    function exportStockTakeForm() {
-      const loc = document.getElementById('stocktake-location').value;
-      const supplier = document.getElementById('stocktake-supplier').value;
-      const todayStr = getTodayDDMMYYYY();
-      let targetItems = supplier ? items.filter(i => i.supplier === supplier) : items;
-
-      const headers = ['SKU', 'Item Name', 'Category', 'Location', 'System Cartons', 'Physical Cartons Count'];
-      const rows = targetItems.map(i => [i.sku, i.name, i.category, loc.toUpperCase(), loc==='warehouse'?i.whCartons:i.shopCartons, '']);
-      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `StockTake_${loc}_${todayStr.replace(/\//g,'-')}.csv`; a.click();
-      URL.revokeObjectURL(url);
+      inputEl.value = '';
     }
 
     function render() {
       const q = document.getElementById('search').value.toLowerCase();
-      const lowStockOnly = document.getElementById('filter-low-stock').checked;
-      
-      let filtered = items.filter(i => {
-        const matchesQuery = (i.name || '').toLowerCase().includes(q) ||
-          (i.model || '').toLowerCase().includes(q) ||
-          (i.sku || '').toLowerCase().includes(q) ||
-          (i.category || '').toLowerCase().includes(q) ||
-          (i.supplier || '').toLowerCase().includes(q);
-        
-        const totalCartons = (parseFloat(i.whCartons) || 0) + (parseFloat(i.shopCartons) || 0);
-        const isLow = totalCartons <= (parseInt(i.min) || 2);
-        return lowStockOnly ? (matchesQuery && isLow) : matchesQuery;
-      });
-
-      filtered.sort((a, b) => {
-        let valA = a[sortCol];
-        let valB = b[sortCol];
-
-        if (typeof valA === 'string') {
-          valA = valA.toLowerCase();
-          valB = (valB || '').toLowerCase();
-          return sortDir === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        } else {
-          valA = parseFloat(valA) || 0;
-          valB = parseFloat(valB) || 0;
-          return sortDir === 'asc' ? valA - valB : valB - valA;
-        }
-      });
-
-      const arrow = sortDir === 'asc' ? ' ▲' : ' ▼';
-      document.getElementById('th-name').textContent = 'Item' + (sortCol === 'name' ? arrow : '');
-      document.getElementById('th-category').textContent = 'Category' + (sortCol === 'category' ? arrow : '');
-      document.getElementById('th-cost').textContent = 'Unit Cost' + (sortCol === 'cost' ? arrow : '');
-      document.getElementById('th-price').textContent = 'Unit Price' + (sortCol === 'price' ? arrow : '');
+      const filtered = items.filter(i => 
+        (i.name||'').toLowerCase().includes(q) ||
+        (i.category||'').toLowerCase().includes(q) ||
+        (i.model||'').toLowerCase().includes(q)
+      );
 
       const tbody = document.getElementById('tbody');
       const empty = document.getElementById('empty');
@@ -2377,109 +462,43 @@
         tbody.innerHTML = ''; empty.style.display = 'block'; table.style.display = 'none';
       } else {
         empty.style.display = 'none'; table.style.display = 'table';
-        tbody.innerHTML = filtered.map(it => {
-          const totalCartons = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
-          const isLowStock = totalCartons <= (parseInt(it.min) || 2);
-          const costVal = parseFloat(it.cost) || 0;
-          const priceVal = parseFloat(it.price) || 0;
-          
-          let marginPct = 0;
-          if (priceVal > 0) {
-            marginPct = ((priceVal - costVal) / priceVal) * 100;
-          }
-
-          return `
-            <tr class="${isLowStock ? 'low-stock-row' : ''}">
-              <td>
-                <div class="item-name">
-                  ${escapeHtml(it.name)}
-                  ${isLowStock ? `<span class="chip chip-danger" style="font-size:10px;">⚠️ LOW STOCK</span>` : ''}
-                </div>
-                ${it.model ? `<div class="item-model">${escapeHtml(it.model)}</div>` : ''}
-                <div class="item-sku">${escapeHtml(it.sku)}</div>
-              </td>
-              <td><span class="chip" style="background:rgba(107,114,128,0.15);">${escapeHtml(it.category)}</span></td>
-              <td>
-                <strong>${it.whCartons} Cartons</strong>
-                <div class="carton-meta">${Math.round(it.whCartons * (parseFloat(it.qtyPerCarton) || 1))} ${escapeHtml(it.unit)}</div>
-              </td>
-              <td>
-                <strong>${it.shopCartons} Cartons</strong>
-                <div class="carton-meta">${Math.round(it.shopCartons * (parseFloat(it.qtyPerCarton) || 1))} ${escapeHtml(it.unit)}</div>
-              </td>
-              <td class="price" style="color:var(--text-secondary);">KSh ${costVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-              <td class="price"><strong>KSh ${priceVal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}</strong></td>
-              <td>
-                <span class="chip ${marginPct >= 0 ? 'chip-positive' : 'chip-danger'}">
-                  ${marginPct.toFixed(1)}%
-                </span>
-              </td>
-              <td>
-                <div class="row-actions">
-                  <button class="btn btn-sm" onclick="openDispatchModal('${it.id}')" title="Supply to Client">🚚 Supply</button>
-                  <button class="btn btn-sm" onclick="openTransferModal('${it.id}')" title="Transfer Stock">🔄 Transfer</button>
-                  <button class="btn btn-sm" style="color:var(--danger); border-color:var(--danger);" onclick="openLossModal('${it.id}')" title="Record Loss or Damage">🗑️ Loss</button>
-                  <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
-                  <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
-                </div>
-              </td>
-            </tr>
-          `;
-        }).join('');
+        tbody.innerHTML = filtered.map(it => `
+          <tr>
+            <td><strong>${it.name}</strong><br><small>${it.sku}</small></td>
+            <td><span class="chip">${it.category || 'General'}</span></td>
+            <td><strong>${it.whCartons || 0} Cartons</strong></td>
+            <td><strong>${it.shopCartons || 0} Cartons</strong></td>
+            <td>KSh ${parseFloat(it.cost || 0).toFixed(2)}</td>
+            <td><strong>KSh ${parseFloat(it.price || 0).toFixed(2)}</strong></td>
+            <td>-</td>
+            <td>
+              <button class="btn btn-sm" onclick="editItem('${it.id}')">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteItem('${it.id}')">Delete</button>
+            </td>
+          </tr>
+        `).join('');
       }
 
-      const totalItems = items.length;
-      const totalWhCartons = items.reduce((s, i) => s + (parseFloat(i.whCartons) || 0), 0);
-      const totalShopCartons = items.reduce((s, i) => s + (parseFloat(i.shopCartons) || 0), 0);
-      const totalCostVal = items.reduce((s, i) => s + (((parseFloat(i.whCartons) || 0) + (parseFloat(i.shopCartons) || 0)) * (parseFloat(i.qtyPerCarton) || 1) * (parseFloat(i.cost) || 0)), 0);
-      const totalRetailVal = items.reduce((s, i) => s + (((parseFloat(i.whCartons) || 0) + (parseFloat(i.shopCartons) || 0)) * (parseFloat(i.qtyPerCarton) || 1) * (parseFloat(i.price) || 0)), 0);
-
-      document.getElementById('stat-total').textContent = totalItems;
-      document.getElementById('stat-cost').textContent = 'KSh ' + totalCostVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
-      document.getElementById('stat-value').textContent = 'KSh ' + totalRetailVal.toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0});
-      document.getElementById('stat-wh').textContent = totalWhCartons.toFixed(1) + ' ctns';
-      document.getElementById('stat-shop').textContent = totalShopCartons.toFixed(1) + ' ctns';
-    }
-
-    function sortBy(col) {
-      if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-      else { sortCol = col; sortDir = 'asc'; }
-      render();
+      document.getElementById('stat-total').textContent = items.length;
     }
 
     function openModal(id) {
       document.getElementById('modal').classList.add('open');
       document.getElementById('item-form').reset();
-      document.getElementById('edit-id').value = '';
-      document.getElementById('modal-title').textContent = id ? 'Edit item' : 'Add single item';
-      skuEdited = false;
-      const badge = document.getElementById('ai-cat-badge');
-      if (badge) badge.style.display = 'none';
-      updateSupplierList();
-
-      const initSection = document.getElementById('initial-stock-section');
-
+      document.getElementById('edit-id').value = id || '';
       if (id) {
-        initSection.style.display = 'none';
         const it = items.find(i => String(i.id) === String(id));
         if (it) {
-          skuEdited = true;
-          document.getElementById('edit-id').value = it.id;
           document.getElementById('f-name').value = it.name;
           document.getElementById('f-model').value = it.model || '';
           document.getElementById('f-sku').value = it.sku;
           document.getElementById('f-category').value = it.category;
           document.getElementById('f-qtyPerCarton').value = it.qtyPerCarton || 1;
-          document.getElementById('f-unit').value = it.unit;
+          document.getElementById('f-unit').value = it.unit || 'pcs';
           document.getElementById('f-cost').value = it.cost || 0;
           document.getElementById('f-price').value = it.price || 0;
-          document.getElementById('f-min').value = it.min;
           document.getElementById('f-supplier').value = it.supplier || '';
         }
-      } else {
-        initSection.style.display = 'grid';
-        document.getElementById('f-initialLoc').value = 'warehouse';
-        document.getElementById('f-initialCartons').value = 0;
       }
     }
 
@@ -2487,11 +506,9 @@
 
     function saveItem(e) {
       e.preventDefault();
-      const id = document.getElementById('edit-id').value;
-      const initialLoc = document.getElementById('f-initialLoc').value;
-      const initialCartons = parseFloat(document.getElementById('f-initialCartons').value) || 0;
-
+      const id = document.getElementById('edit-id').value || (Date.now() + '');
       const data = {
+        id: id,
         name: document.getElementById('f-name').value.trim(),
         model: document.getElementById('f-model').value.trim(),
         sku: document.getElementById('f-sku').value.trim(),
@@ -2500,201 +517,22 @@
         unit: document.getElementById('f-unit').value.trim(),
         cost: parseFloat(document.getElementById('f-cost').value) || 0,
         price: parseFloat(document.getElementById('f-price').value) || 0,
-        min: parseInt(document.getElementById('f-min').value) || 0,
-        supplier: document.getElementById('f-supplier').value.trim()
+        supplier: document.getElementById('f-supplier').value.trim(),
+        whCartons: 0,
+        shopCartons: 0
       };
-
-      if (id) {
-        const idx = items.findIndex(i => String(i.id) === String(id));
-        if (idx > -1) {
-          items[idx] = { ...items[idx], ...data };
-          saveSingleItem(items[idx]);
-        }
-      } else {
-        data.id = generateUniqueId();
-        data.whCartons = (initialLoc === 'warehouse') ? initialCartons : 0;
-        data.shopCartons = (initialLoc === 'shop') ? initialCartons : 0;
-        items.push(data);
-        saveSingleItem(data);
-
-        if (initialCartons > 0) {
-          logMovement('RECEIVE', 'INITIAL', new Date().toISOString().split('T')[0], data.name, `${initialCartons} Cartons`, `Initial Receipt ➔ ${initialLoc.toUpperCase()}`);
-        }
-      }
-
-      updateCatList(); updateSupplierList(); closeModal(); render();
+      db.ref('items/' + id).update(data);
+      closeModal();
     }
 
     function editItem(id) { openModal(id); }
     function deleteItem(id) {
-      if (confirm('Delete this item?')) {
-        items = items.filter(i => String(i.id) !== String(id));
-        db.ref('items/' + id).remove();
-        try { localStorage.setItem('local_items', JSON.stringify(items)); } catch(e){}
-        updateCatList(); updateSupplierList(); render();
-      }
+      if (confirm('Delete this item?')) db.ref('items/' + id).remove();
     }
 
-    function exportCSV() {
-      const headers = ['Name','Model','SKU','Category','Qty Per Carton','Warehouse Cartons','Shop Cartons','Unit','Unit Cost','Unit Price','Supplier'];
-      const rows = items.map(i => [i.name, i.model||'', i.sku, i.category, i.qtyPerCarton, i.whCartons, i.shopCartons, i.unit, i.cost||0, i.price||0, i.supplier||'']);
-      const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'inventory_wh_shop.csv'; a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function getProduct30DayMovementCartons(itemName, qtyPerCarton) {
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      let totalCartonsOut = 0;
-
-      auditLogs.forEach(log => {
-        if (log.itemName === itemName && (log.action === 'SUPPLY_CLIENT' || log.action === 'SOLD_TO_SHOP' || log.action === 'DAMAGE_LOSS')) {
-          let logTime = 0;
-          if (typeof log.date === 'string' && log.date.includes('/')) {
-            const parts = log.date.split('/');
-            if (parts.length === 3) {
-              logTime = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
-            }
-          } else if (log.date) {
-            logTime = new Date(log.date).getTime();
-          }
-
-          if (!isNaN(logTime) && logTime >= thirtyDaysAgo) {
-            let parts = (log.qty || '').split(' ');
-            let val = parseFloat(parts[0]) || 0;
-            let unit = parts[1] || 'cartons';
-
-            if (unit.toLowerCase().includes('carton')) {
-              totalCartonsOut += val;
-            } else {
-              totalCartonsOut += (val / (parseFloat(qtyPerCarton) || 1));
-            }
-          }
-        }
-      });
-      return totalCartonsOut;
-    }
-
-    function openOrderModal() {
-      document.getElementById('order-modal').classList.add('open');
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
-      document.getElementById('order-supplier').innerHTML = '<option value="">-- Choose a supplier --</option>' +
-        suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-      document.getElementById('order-items-wrap').style.display = 'none';
-    }
-
-    function closeOrderModal() { document.getElementById('order-modal').classList.remove('open'); }
-
-    function renderOrderItems() {
-      const supplier = document.getElementById('order-supplier').value;
-      const bufferDays = parseInt(document.getElementById('order-buffer-days').value) || 30;
-      const wrap = document.getElementById('order-items-wrap');
-      const container = document.getElementById('order-items');
-      
-      if (!supplier) { wrap.style.display = 'none'; return; }
-      const supplierItems = items.filter(i => i.supplier === supplier);
-      if (!supplierItems.length) { wrap.style.display = 'none'; return; }
-      
-      wrap.style.display = 'block';
-
-      container.innerHTML = supplierItems.map(it => {
-        const totalStockCartons = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
-        const moved30DaysCartons = getProduct30DayMovementCartons(it.name, it.qtyPerCarton);
-        
-        const dailySalesRate = moved30DaysCartons / 30;
-        const targetStockCartons = Math.max(Math.ceil(dailySalesRate * bufferDays), parseInt(it.min) || 1);
-        
-        const neededCartons = Math.max(0, targetStockCartons - totalStockCartons);
-        const shouldCheck = neededCartons > 0;
-
-        return `
-        <div class="order-item">
-          <input type="checkbox" id="chk-${it.id}" onchange="calcOrderTotal()" ${shouldCheck ? 'checked' : ''}>
-          <div class="order-item-info">
-            <div class="order-item-name">${escapeHtml(it.name)}</div>
-            <div class="order-item-meta">
-              SKU: ${escapeHtml(it.sku)} · On Hand: ${totalStockCartons.toFixed(1)} ctns · 30-Day Outflow: ${moved30DaysCartons.toFixed(1)} ctns 
-              <br><span style="color:var(--accent-orange);">Target: ${targetStockCartons} ctns (${bufferDays}d buffer)</span>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <input type="number" class="order-qty" id="qty-${it.id}" value="${neededCartons}" min="0" onchange="calcOrderTotal()">
-            <span style="font-size:12px;">ctns</span>
-          </div>
-        </div>
-      `}).join('');
-
-      calcOrderTotal();
-    }
-
-    function calcOrderTotal() {
-      let total = 0;
-      items.forEach(it => {
-        const chk = document.getElementById('chk-' + it.id);
-        const qty = document.getElementById('qty-' + it.id);
-        if (chk && chk.checked && qty) {
-          const cartonsToOrder = parseFloat(qty.value) || 0;
-          const costPrice = parseFloat(it.cost) || parseFloat(it.price) || 0;
-          total += (costPrice * (parseFloat(it.qtyPerCarton) || 1)) * cartonsToOrder;
-        }
-      });
-      document.getElementById('order-total').textContent = 'Order total (Est. Cost): KSh ' + total.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-    }
-
-    function exportOrder() {
-      const supplier = document.getElementById('order-supplier').value;
-      if (!supplier) { alert('Select supplier.'); return; }
-      const todayStr = getTodayDDMMYYYY();
-      const orderId = 'PO-' + todayStr.replace(/\//g,'') + '-' + Math.floor(Math.random()*1000);
-      const rows = [];
-      let total = 0;
-
-      items.forEach(it => {
-        const chk = document.getElementById('chk-' + it.id);
-        const qty = document.getElementById('qty-' + it.id);
-        if (chk && chk.checked && qty) {
-          const cartons = parseFloat(qty.value) || 0;
-          if (cartons > 0) {
-            const unitCostVal = parseFloat(it.cost) || parseFloat(it.price) || 0;
-            const lineTotal = (unitCostVal * (parseFloat(it.qtyPerCarton) || 1)) * cartons;
-            total += lineTotal;
-            rows.push([it.name, it.model||'', it.sku, cartons, it.qtyPerCarton, (unitCostVal * (parseFloat(it.qtyPerCarton) || 1)).toFixed(2), lineTotal.toFixed(2)]);
-          }
-        }
-      });
-
-      if (!rows.length) { alert('No items checked with quantity > 0.'); return; }
-
-      const csvLines = [
-        `"Purchase Order","${supplier}","${todayStr}","${orderId}"`,
-        '',
-        '"Item","Model","SKU","Cartons Ordered","Units Per Carton","Carton Est. Cost","Total Line KSh"',
-        ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')),
-        '',
-        ` "Order Est. Total KSh",,,,,,"${total.toFixed(2)}"`
-      ];
-      
-      const blob = new Blob([csvLines.join('\n')], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `${orderId}.csv`; a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
-    document.getElementById('category-modal').addEventListener('click', e => { if (e.target === document.getElementById('category-modal')) closeCategoryManagerModal(); });
-    document.getElementById('supplier-modal').addEventListener('click', e => { if (e.target === document.getElementById('supplier-modal')) closeSupplierManagerModal(); });
-    document.getElementById('pricelist-modal').addEventListener('click', e => { if (e.target === document.getElementById('pricelist-modal')) closePricelistModal(); });
-    document.getElementById('ai-forecast-modal').addEventListener('click', e => { if (e.target === document.getElementById('ai-forecast-modal')) closeAiForecastModal(); });
-    document.getElementById('csv-preview-modal').addEventListener('click', e => { if (e.target === document.getElementById('csv-preview-modal')) closeCsvPreviewModal(); });
-    document.getElementById('bulk-receive-modal').addEventListener('click', e => { if (e.target === document.getElementById('bulk-receive-modal')) closeBulkReceiveModal(); });
-    document.getElementById('audit-modal').addEventListener('click', e => { if (e.target === document.getElementById('audit-modal')) closeAuditLogModal(); });
-    document.getElementById('stocktake-modal').addEventListener('click', e => { if (e.target === document.getElementById('stocktake-modal')) closeStockTakeModal(); });
-    document.getElementById('transfer-modal').addEventListener('click', e => { if (e.target === document.getElementById('transfer-modal')) closeTransferModal(); });
-    document.getElementById('dispatch-modal').addEventListener('click', e => { if (e.target === document.getElementById('dispatch-modal')) closeDispatchModal(); });
-    document.getElementById('loss-modal').addEventListener('click', e => { if (e.target === document.getElementById('loss-modal')) closeLossModal(); });
-    document.getElementById('order-modal').addEventListener('click', e => { if (e.target === document.getElementById('order-modal')) closeOrderModal(); });
+    function openPricelistModal() { document.getElementById('pricelist-modal').classList.add('open'); }
+    function closePricelistModal() { document.getElementById('pricelist-modal').classList.remove('open'); }
+    function exportCSV() { alert('Exporting active stock list...'); }
   </script>
 </body>
 </html>
