@@ -383,6 +383,8 @@
       </div>
     </div>
 
+    <div id="low-stock-banner" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:10px; border:1px solid var(--accent-orange); background:rgba(234,88,12,0.08); font-size:13px; align-items:center; justify-content:space-between; gap:10px;"></div>
+
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-label">Total items</div>
@@ -687,6 +689,13 @@
     <div class="modal-overlay" id="audit-modal">
       <div class="modal" style="max-width: 900px;">
         <h2>📜 Movement Audit Log</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+          <input type="date" id="audit-from" title="From date" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px;">
+          <span style="color:var(--text-tertiary); font-size:13px;">to</span>
+          <input type="date" id="audit-to" title="To date" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px;">
+          <button class="btn btn-sm" id="audit-clear-btn">Clear</button>
+          <button class="btn btn-sm" id="audit-export-btn" style="margin-left:auto; border-color:var(--positive); color:var(--positive);">Export CSV</button>
+        </div>
         <div style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
             <thead>
@@ -696,6 +705,7 @@
                 <th style="padding: 8px;">Item Name</th>
                 <th style="padding: 8px;">Qty</th>
                 <th style="padding: 8px;">Route / Details</th>
+                <th style="padding: 8px;">Undo</th>
               </tr>
             </thead>
             <tbody id="audit-log-tbody"></tbody>
@@ -882,12 +892,14 @@
       return new Date(+m[3], +m[2] - 1, +m[1]);
     }
 
-    function makeLog(action, itemName, qty, route) {
-      return {
+    function makeLog(action, itemName, qty, route, extra) {
+      // `extra` carries structured reversal data (itemId, locKey/fromKey/toKey,
+      // prev/newVal numbers) so movements can be undone later.
+      return Object.assign({
         id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
         date: new Date().toLocaleDateString('en-GB'),
         action, itemName, qty, route
-      };
+      }, extra || {});
     }
 
     function pushLog(log) {
@@ -917,6 +929,7 @@
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).sort((a, b) => String(b.id).localeCompare(String(a.id))) : [];
+      if (document.getElementById('audit-modal').classList.contains('open')) renderAuditLog();
     });
 
     /* --------------------------- Modal open/close --------------------------- */
@@ -1027,7 +1040,27 @@
       document.getElementById('stat-value').textContent = 'KSh ' + totalRetail.toLocaleString(undefined, { maximumFractionDigits: 0 });
       document.getElementById('stat-wh').textContent = items.reduce((s, i) => s + num(i, 'whCartons'), 0).toFixed(1) + ' ctns';
       document.getElementById('stat-shop').textContent = items.reduce((s, i) => s + num(i, 'shopCartons'), 0).toFixed(1) + ' ctns';
+
+      // Low-stock banner
+      const lowItems = items.filter(i => (num(i, 'whCartons') + num(i, 'shopCartons')) <= (parseInt(i.min) || 2));
+      const banner = document.getElementById('low-stock-banner');
+      if (lowItems.length) {
+        const names = lowItems.slice(0, 4).map(i => `${escapeHtml(i.name)} (${num(i, 'whCartons') + num(i, 'shopCartons')})`).join(', ');
+        banner.style.display = 'flex';
+        banner.innerHTML = `<span>⚠️ <strong>${lowItems.length} item(s) at/below reorder level:</strong> ${names}${lowItems.length > 4 ? ` +${lowItems.length - 4} more` : ''}</span><button class="btn btn-sm" id="low-stock-view-btn" style="flex-shrink:0;">View</button>`;
+      } else {
+        banner.style.display = 'none';
+        banner.innerHTML = '';
+      }
     }
+
+    // "View" on the banner applies the low-stock filter
+    document.getElementById('low-stock-banner').addEventListener('click', e => {
+      if (!e.target.closest('#low-stock-view-btn')) return;
+      document.getElementById('filter-low-stock').checked = true;
+      render();
+      document.getElementById('inventory-table').scrollIntoView({ behavior: 'smooth' });
+    });
 
     // Delegated row actions — immune to special characters in names/ids.
     document.getElementById('tbody').addEventListener('click', e => {
@@ -1432,7 +1465,7 @@
         jobs.push(
           db.ref('items/' + id + '/' + locKey).transaction(cur => (parseFloat(cur) || 0) + addVal)
             .then(res => {
-              if (res.committed) pushLog(makeLog('RECEIVE', item.name, `${addVal} Cartons`, receiveRoute));
+              if (res.committed) pushLog(makeLog('RECEIVE', item.name, `${addVal} Cartons`, receiveRoute, { itemId: id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) + addVal }));
               return res.committed;
             })
         );
@@ -1486,7 +1519,10 @@
       }).then(res => {
         if (res.committed) {
           pushLog(makeLog('TRANSFER', item.name, `${val} Cartons`,
-            route === 'wh_to_shop' ? 'Warehouse ➔ Shop' : 'Shop ➔ Warehouse'));
+            route === 'wh_to_shop' ? 'Warehouse ➔ Shop' : 'Shop ➔ Warehouse',
+            { itemId: item.id, fromKey, toKey,
+              fromPrev: parseFloat(item[fromKey]) || 0, fromNew: (parseFloat(item[fromKey]) || 0) - val,
+              toPrev: parseFloat(item[toKey]) || 0, toNew: (parseFloat(item[toKey]) || 0) + val }));
           toast(`Transferred ${val} cartons of ${item.name}.`, 'success');
           closeModal('transfer-modal');
         } else {
@@ -1544,7 +1580,7 @@
         return c - val;
       }).then(res => {
         if (res.committed) {
-          pushLog(makeLog('SUPPLY_CLIENT', item.name, `${val} Cartons`, routeDetail));
+          pushLog(makeLog('SUPPLY_CLIENT', item.name, `${val} Cartons`, routeDetail, { itemId: item.id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) - val }));
           toast(`Dispatched ${val} cartons of ${item.name} to ${client}${ref ? ` (Ref: ${ref})` : ''}.`, 'success');
           closeModal('dispatch-modal');
         } else {
@@ -1584,7 +1620,7 @@
         return c - val;
       }).then(res => {
         if (res.committed) {
-          pushLog(makeLog('DAMAGE_LOSS', item.name, `${val} Cartons`, `${src.toUpperCase()} Shrinkage`));
+          pushLog(makeLog('DAMAGE_LOSS', item.name, `${val} Cartons`, `${src.toUpperCase()} Shrinkage`, { itemId: item.id, locKey, prev: avail, newVal: avail - val }));
           toast(`Recorded ${val} cartons loss for ${item.name}.`, 'success');
           closeModal('loss-modal');
         } else {
@@ -1595,22 +1631,94 @@
 
     /* --------------------------- Audit Log --------------------------- */
 
+    const REVERSIBLE_ACTIONS = ['SUPPLY_CLIENT', 'DAMAGE_LOSS', 'RECEIVE', 'TRANSFER', 'STOCK_TAKE'];
+    let auditFrom = '', auditTo = '';
+
+    function getFilteredAudit() {
+      return auditLogs.filter(l => {
+        if (!auditFrom && !auditTo) return true;
+        const d = parseLogDate(l.date);
+        if (!d) return true;
+        if (auditFrom && d < new Date(auditFrom + 'T00:00:00')) return false;
+        if (auditTo && d > new Date(auditTo + 'T23:59:59')) return false;
+        return true;
+      });
+    }
+
     function renderAuditLog() {
       const tbody = document.getElementById('audit-log-tbody');
-      if (!auditLogs.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-tertiary);">No movements recorded yet.</td></tr>';
+      const rows = getFilteredAudit();
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">' +
+          (auditLogs.length ? 'No movements in the selected date range.' : 'No movements recorded yet.') + '</td></tr>';
         return;
       }
-      tbody.innerHTML = auditLogs.map(l => `
+      tbody.innerHTML = rows.map(l => `
         <tr style="border-bottom:1px solid var(--border-divider);">
           <td style="padding:8px;">${escapeHtml(l.date)}</td>
           <td style="padding:8px;"><span class="chip">${escapeHtml(l.action)}</span></td>
           <td style="padding:8px;"><strong>${escapeHtml(l.itemName)}</strong></td>
           <td style="padding:8px;">${escapeHtml(l.qty)}</td>
           <td style="padding:8px;">${escapeHtml(l.route)}</td>
+          <td style="padding:8px;">${(REVERSIBLE_ACTIONS.includes(l.action) && l.itemId)
+            ? `<button class="btn btn-sm" data-undo="${escapeHtml(l.id)}">↶ Undo</button>`
+            : '<span style="color:var(--text-tertiary);">—</span>'}</td>
         </tr>
       `).join('');
     }
+
+    // Undo a movement: applies the reverse delta to stock, guarded so stock
+    // can never go below zero, then records an UNDO entry in the audit trail.
+    function undoMovement(logId) {
+      const log = auditLogs.find(l => String(l.id) === String(logId));
+      if (!log || !log.itemId) { toast('This entry has no reversal data.', 'error'); return; }
+      if (!confirm(`Reverse this movement?\n\n${log.action} — ${log.itemName} (${log.qty})\n${log.route}`)) return;
+
+      const item = items.find(i => String(i.id) === String(log.itemId));
+      if (!item) { toast('This item no longer exists.', 'error'); return; }
+
+      const ops = (log.action === 'TRANSFER')
+        ? [{ key: log.fromKey, delta: log.fromPrev - log.fromNew },
+           { key: log.toKey, delta: log.toPrev - log.toNew }]
+        : [{ key: log.locKey, delta: log.prev - log.newVal }];
+
+      // Pre-check against current values so we never half-apply a reversal
+      for (const op of ops) {
+        if ((parseFloat(item[op.key]) || 0) + op.delta < 0) {
+          toast('Cannot undo: later movements already consumed this stock.', 'error');
+          return;
+        }
+      }
+
+      Promise.all(ops.map(op =>
+        db.ref('items/' + log.itemId + '/' + op.key).transaction(cur => (parseFloat(cur) || 0) + op.delta)
+      )).then(() => {
+        pushLog(makeLog('UNDO', log.itemName, log.qty, `Reversed ${log.action} from ${log.date} · ${log.route}`));
+        toast('Movement reversed.', 'success');
+        renderAuditLog();
+      });
+    }
+
+    document.getElementById('audit-log-tbody').addEventListener('click', e => {
+      const btn = e.target.closest('[data-undo]');
+      if (btn) undoMovement(btn.dataset.undo);
+    });
+    document.getElementById('audit-from').addEventListener('change', e => { auditFrom = e.target.value; renderAuditLog(); });
+    document.getElementById('audit-to').addEventListener('change', e => { auditTo = e.target.value; renderAuditLog(); });
+    document.getElementById('audit-clear-btn').addEventListener('click', () => {
+      auditFrom = ''; auditTo = '';
+      document.getElementById('audit-from').value = '';
+      document.getElementById('audit-to').value = '';
+      renderAuditLog();
+    });
+    document.getElementById('audit-export-btn').addEventListener('click', () => {
+      const rows = getFilteredAudit();
+      if (!rows.length) { toast('Nothing to export in the current view.', 'error'); return; }
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadCsv(`audit_log_${dateStr}.csv`, ['Date', 'Action', 'Item', 'Qty', 'Route / Details'],
+        rows.map(l => [l.date, l.action, l.itemName, l.qty, l.route]));
+      toast(`Exported ${rows.length} audit entr${rows.length === 1 ? 'y' : 'ies'} to CSV.`, 'success');
+    });
 
     /* --------------------------- Stock Take --------------------------- */
 
@@ -1648,7 +1756,8 @@
           variances.push(makeLog('STOCK_TAKE',
             it.name,
             `${system} → ${physical} (${diff > 0 ? '+' : ''}${diff})`,
-            `${loc.toUpperCase()} count variance`));
+            `${loc.toUpperCase()} count variance`,
+            { itemId: it.id, locKey, prev: system, newVal: physical }));
         }
       });
 
