@@ -935,6 +935,21 @@
       appId: "1:283281271142:web:34d150e2f14bbaf18c40a7"
     };
 
+    // Guard: the Firebase libraries load from Google's CDN. If a preview sandbox,
+    // ad-blocker, or offline state blocks them, fail LOUDLY with a clear message
+    // instead of the cryptic browser "Script error".
+    if (typeof firebase === 'undefined' || typeof firebase.database !== 'function') {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:12px;left:12px;right:12px;z-index:9999;' +
+        'padding:14px 18px;border-radius:10px;background:#dc2626;color:#fff;' +
+        'font:600 14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.3)';
+      banner.textContent = '\u26a0\ufe0f Firebase could not load. This app needs internet access to Google\u2019s servers. ' +
+        'If you\u2019re previewing inside an editor or sandbox, instead open the saved .html file directly in a full browser ' +
+        '(Chrome/Edge/Safari). Also check ad-blockers or firewalls blocking gstatic.com / googleapis.com.';
+      document.body.appendChild(banner);
+      throw new Error('Firebase unavailable');
+    }
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
@@ -1630,8 +1645,8 @@
       const type = document.getElementById('pl-type').value;
       const showCost = type !== 'price', showPrice = type !== 'cost';
 
-      let filtered = items.filter(i => i.supplier === supplier);
-      if (category) filtered = filtered.filter(i => i.category === category);
+      let filtered = items.filter(i => (i.supplier || '').trim().toLowerCase() === supplier.trim().toLowerCase());
+      if (category) filtered = filtered.filter(i => (i.category || 'General').trim().toLowerCase() === category.trim().toLowerCase());
       filtered.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 
       if (!filtered.length) { toast('No items to export for this selection.', 'error'); return; }
@@ -1673,8 +1688,8 @@
     });
 
     function renderPriceList() {
-      const supplier = document.getElementById('pl-supplier').value;
-      const category = document.getElementById('pl-category').value;
+      const supplier = document.getElementById('pl-supplier').value.trim();
+      const category = document.getElementById('pl-category').value.trim();
       const type = document.getElementById('pl-type').value;
       const tbody = document.getElementById('pricelist-tbody');
 
@@ -1692,8 +1707,8 @@
         return;
       }
 
-      let filtered = items.filter(i => i.supplier === supplier);
-      if (category) filtered = filtered.filter(i => i.category === category);
+      let filtered = items.filter(i => (i.supplier || '').trim().toLowerCase() === supplier.trim().toLowerCase());
+      if (category) filtered = filtered.filter(i => (i.category || 'General').trim().toLowerCase() === category.trim().toLowerCase());
 
       filtered.sort((a, b) => String(a.name).localeCompare(String(b.name)));
       document.getElementById('pl-header-count').textContent = `${filtered.length} item(s)`;
@@ -1867,7 +1882,8 @@
     /* --------------------------- Bulk Receive --------------------------- */
 
     function initBulkReceive() {
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      const rawSuppliers = items.map(i => (i.supplier || '').trim()).filter(Boolean);
+      const suppliers = [...new Set(rawSuppliers)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
       document.getElementById('receive-supplier-select').innerHTML =
         '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -1902,12 +1918,13 @@
     document.getElementById('bulk-receive-items').addEventListener('input', updateRecTotal);
 
     function renderBulkReceiveItems() {
-      const supplier = document.getElementById('receive-supplier-select').value;
+      const selectedSupplier = (document.getElementById('receive-supplier-select').value || '').trim().toLowerCase();
       const container = document.getElementById('bulk-receive-items');
       document.getElementById('rec-new-item').style.display = 'none';
-      document.getElementById('rec-add-item-btn').style.display = supplier ? 'inline-block' : 'none';
-      if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; updateRecTotal(); return; }
-      const list = items.filter(i => i.supplier === supplier).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      document.getElementById('rec-add-item-btn').style.display = selectedSupplier ? 'inline-block' : 'none';
+      if (!selectedSupplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; updateRecTotal(); return; }
+      const list = items.filter(i => (i.supplier || '').trim().toLowerCase() === selectedSupplier)
+                        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
       if (!list.length) { container.innerHTML = '<p style="padding:20px; text-align:center;">No items from this supplier yet — add one below.</p>'; updateRecTotal(); return; }
       container.innerHTML = list.map(it => `
         <div class="order-item" style="flex-wrap:wrap; row-gap:6px;" data-row="${escapeHtml(it.id)}">
@@ -1946,7 +1963,7 @@
       const jobs = [];
       let qtyLines = 0, priceLines = 0;
 
-      items.filter(i => i.supplier === supplier).forEach(item => {
+      items.filter(i => (i.supplier || '').trim().toLowerCase() === supplier.trim().toLowerCase()).forEach(item => {
         const id = String(item.id);
         const qtyInp = document.querySelector(`[data-rec-qty="${CSS.escape(id)}"]`);
         if (!qtyInp) return;
@@ -2327,7 +2344,7 @@
     /* --------------------------- Purchase Order --------------------------- */
 
     function initOrderModal() {
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      const suppliers = [...new Set(items.map(i => (i.supplier || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
       document.getElementById('order-supplier').innerHTML =
         '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -2346,7 +2363,7 @@
       const fById = {};
       forecasts.forEach(f => { fById[String(f.it.id)] = f; });
 
-      const list = items.filter(i => i.supplier === supplier).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      const list = items.filter(i => (i.supplier || '').trim().toLowerCase() === supplier.trim().toLowerCase()).sort((a, b) => String(a.name).localeCompare(String(b.name)));
       if (!list.length) { container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">No items from this supplier.</p>'; return; }
 
       // Demand-driven cover: order what's needed to last `days`, minus what's already in stock.
@@ -2373,7 +2390,7 @@
       const supplier = document.getElementById('order-supplier').value;
       if (!supplier) { toast('Select a supplier first.', 'error'); return; }
 
-      const list = items.filter(i => i.supplier === supplier);
+      const list = items.filter(i => (i.supplier || '').trim().toLowerCase() === supplier.trim().toLowerCase());
       const rows = [];
       list.forEach(it => {
         const inp = document.querySelector(`[data-po="${CSS.escape(String(it.id))}"]`);
