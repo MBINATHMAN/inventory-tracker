@@ -239,18 +239,39 @@
 
     /* CONTINUOUS TABLE PRINT CSS - PREVENTS ONE ITEM PER PAGE */
     @media print {
+      @page { size: A4; margin: 12mm; }
+
       body * { visibility: hidden !important; }
-      #pricelist-print-area, #pricelist-print-area * { visibility: visible !important; }
+
+      /* Neutralise the modal stack so the print area's absolute positioning
+         resolves against the PAGE, not the centred modal (fixes shifted/clipped output). */
+      .modal-overlay { position: static !important; display: block !important; padding: 0 !important; background: none !important; }
+      .modal, .modal-overlay.open .modal {
+        position: static !important; transform: none !important;
+        width: 100% !important; max-width: none !important; max-height: none !important;
+        padding: 0 !important; margin: 0 !important; border: none !important;
+        overflow: visible !important; box-shadow: none !important;
+      }
+
+      #pricelist-print-area, #pricelist-print-area * {
+        visibility: visible !important;
+        color: #000 !important;                       /* kills dark-mode gray leakage */
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       #pricelist-print-area {
         position: absolute !important; left: 0 !important; top: 0 !important;
-        width: 100% !important; color: #000 !important; background: #fff !important;
+        width: 100% !important; background: #fff !important;
         padding: 0 !important; margin: 0 !important;
       }
-      #pl-table-wrap { max-height: none !important; height: auto !important; overflow: visible !important; border: none !important; display: block !important; }
-      #pricelist-print-area table { width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
+      /* Undo mobile min-width/scroll traps */
+      #pricelist-print-area table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
+      #pl-table-wrap { max-height: none !important; height: auto !important; overflow: visible !important; border: none !important; display: block !important; min-width: 0 !important; }
       #pricelist-print-area tr { page-break-inside: avoid !important; break-inside: avoid !important; }
       #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
-      #pricelist-print-area th { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; }
+      #pricelist-print-area th { background-color: #f2f2f2 !important; }
+      #pricelist-print-area .num { text-align: right !important; }   /* money columns stay right-aligned */
+      #pricelist-print-area div[style*="border-bottom"] { border-color: #999 !important; }
     }
 
     /* ================= MOBILE RESPONSIVE (phones & small tablets) ================= */
@@ -512,8 +533,8 @@
                   <th style="padding: 8px;">Model</th>
                   <th style="padding: 8px;">Category</th>
                   <th style="padding: 8px;">Packaging</th>
-                  <th style="padding: 8px; text-align: right;" id="pl-th-cost">Unit Cost (KSh)</th>
-                  <th style="padding: 8px; text-align: right;" id="pl-th-price">Unit Price (KSh)</th>
+                  <th style="padding: 8px; text-align: right;" id="pl-th-cost" class="num">Unit Cost (KSh)</th>
+                  <th style="padding: 8px; text-align: right;" id="pl-th-price" class="num">Unit Price (KSh)</th>
                 </tr>
               </thead>
               <tbody id="pricelist-tbody"></tbody>
@@ -522,7 +543,8 @@
         </div>
 
         <div class="modal-actions" style="margin-top: 16px;">
-          <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Print Price List</button>
+          <button type="button" class="btn" id="pl-excel-btn" style="border-color:var(--positive); color:var(--positive);">📊 Save to Excel</button>
+          <button type="button" class="btn btn-primary" id="pl-print-btn">🖨️ Print Price List</button>
           <button type="button" class="btn" data-close="pricelist-modal">Close</button>
         </div>
       </div>
@@ -794,6 +816,7 @@
   <!-- Firebase Scripts -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <script>
     /* =====================================================================
@@ -1215,6 +1238,66 @@
     document.getElementById('pl-category').addEventListener('change', renderPriceList);
     document.getElementById('pl-type').addEventListener('change', renderPriceList);
 
+    // Print with a meaningful document title (used as the PDF filename in Chrome)
+    document.getElementById('pl-print-btn').addEventListener('click', () => {
+      const supplier = document.getElementById('pl-supplier').value;
+      const originalTitle = document.title;
+      document.title = supplier ? `Price List - ${supplier}` : originalTitle;
+      const restore = () => { document.title = originalTitle; window.removeEventListener('afterprint', restore); };
+      window.addEventListener('afterprint', restore);
+      window.print();
+    });
+
+    // Save the price list as a real .xlsx workbook (falls back to CSV offline)
+    document.getElementById('pl-excel-btn').addEventListener('click', () => {
+      const supplier = document.getElementById('pl-supplier').value;
+      if (!supplier) { toast('Select a supplier first.', 'error'); return; }
+      const category = document.getElementById('pl-category').value;
+      const type = document.getElementById('pl-type').value;
+      const showCost = type !== 'price', showPrice = type !== 'cost';
+
+      let filtered = items.filter(i => i.supplier === supplier);
+      if (category) filtered = filtered.filter(i => i.category === category);
+      filtered.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+      if (!filtered.length) { toast('No items to export for this selection.', 'error'); return; }
+
+      const header = ['SKU', 'Item Name', 'Model', 'Category', 'Packaging'];
+      if (showCost) header.push('Unit Cost (KSh)');
+      if (showPrice) header.push('Unit Price (KSh)');
+
+      const rows = filtered.map(it => {
+        const r = [it.sku, it.name, it.model || 'N/A', it.category || 'General', `${it.qtyPerCarton || 1} ${it.unit || 'pcs'}/ctn`];
+        if (showCost) r.push(parseFloat(it.cost) || 0);
+        if (showPrice) r.push(parseFloat(it.price) || 0);
+        return r;
+      });
+
+      const safeName = supplier.replace(/[^\w]+/g, '_').slice(0, 40) || 'Supplier';
+      const dateStr = new Date().toISOString().slice(0, 10);
+
+      if (typeof XLSX === 'undefined') {
+        // Library didn't load (offline/CDN blocked) — CSV opens in Excel too
+        downloadCsv(`Price_List_${safeName}_${dateStr}.csv`, header, rows);
+        toast('Excel library unavailable — saved as CSV instead (opens in Excel).', 'info');
+        return;
+      }
+
+      const sheetData = [
+        [`Price List: ${supplier}`],
+        [`Generated: ${new Date().toLocaleDateString('en-GB')}${category ? '   ·   Category: ' + category : ''}   ·   ${filtered.length} item(s)`],
+        [],
+        header,
+        ...rows
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      ws['!cols'] = [{ wch: 14 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, safeName.slice(0, 31));
+      XLSX.writeFile(wb, `Price_List_${safeName}_${dateStr}.xlsx`);
+      toast(`Saved ${filtered.length} item(s) to Excel.`, 'success');
+    });
+
     function renderPriceList() {
       const supplier = document.getElementById('pl-supplier').value;
       const category = document.getElementById('pl-category').value;
@@ -1256,8 +1339,8 @@
             <td style="padding: 8px; color: var(--text-secondary);">${escapeHtml(it.model || 'N/A')}</td>
             <td style="padding: 8px;">${escapeHtml(it.category || 'General')}</td>
             <td style="padding: 8px; color: var(--text-tertiary);">${it.qtyPerCarton || 1} ${escapeHtml(it.unit || 'pcs')}/ctn</td>
-            ${type !== 'price' ? `<td style="padding: 8px; text-align: right;">KSh ${costVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>` : ''}
-            ${type !== 'cost' ? `<td style="padding: 8px; text-align: right; font-weight: 600;">KSh ${priceVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>` : ''}
+            ${type !== 'price' ? `<td class="num" style="padding: 8px; text-align: right;">KSh ${costVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>` : ''}
+            ${type !== 'cost' ? `<td class="num" style="padding: 8px; text-align: right; font-weight: 600;">KSh ${priceVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>` : ''}
           </tr>
         `;
       }).join('');
