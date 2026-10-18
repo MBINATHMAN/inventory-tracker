@@ -938,6 +938,14 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // Never fail silently: surface any unexpected error on screen.
+    window.addEventListener('error', e => {
+      try { toast('\u26a0\ufe0f ' + (e.message || 'Unexpected error'), 'error'); } catch (_) {}
+    });
+    window.addEventListener('unhandledrejection', e => {
+      try { toast('\u26a0\ufe0f ' + ((e.reason && e.reason.message) || 'Network/async error'), 'error'); } catch (_) {}
+    });
+
     let items = [];
     let auditLogs = [];
     let sortCol = 'name';
