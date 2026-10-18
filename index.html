@@ -274,6 +274,25 @@
       #pricelist-print-area div[style*="border-bottom"] { border-color: #999 !important; }
     }
 
+    /* ---- AI Assistant chat ---- */
+    .ai-chat-log { display: none; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; margin: 10px 0; }
+    .ai-msg { padding: 8px 12px; border-radius: 12px; font-size: 13px; max-width: 92%; white-space: pre-wrap; line-height: 1.5; }
+    .ai-msg.user { align-self: flex-end; background: var(--accent-purple); color: #fff; border-bottom-right-radius: 4px; }
+    .ai-msg.bot { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .ai-msg.bot strong { color: var(--accent-purple); }
+    .ai-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .ai-chip {
+      padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text-secondary); font-size: 12px; cursor: pointer;
+    }
+    .ai-chip:hover { border-color: var(--accent-purple); color: var(--accent-purple); }
+
+    /* ---- Receiving line fields ---- */
+    .rec-field { display: flex; flex-direction: column; gap: 2px; }
+    .rec-field > span { font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-tertiary); }
+    .rec-input { width: 70px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: right; font-weight: 600; }
+    .rec-input.rec-cost { width: 96px; }
+
     /* ================= MOBILE RESPONSIVE (phones & small tablets) ================= */
     @media (max-width: 820px) {
       body { padding: 12px; }
@@ -392,19 +411,24 @@
       </div>
     </div>
 
-    <!-- AI Search Assistant Console -->
+    <!-- AI Assistant -->
     <div class="ai-command-box">
       <div class="ai-command-header">
-        <span>🔍 AI Inventory Search & Query Console</span>
-        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Examples: "mugs", "how many types of mugs do I have?", "kettles"</span>
+        <span>🤖 AI Assistant — ask about your stock, sales &amp; orders</span>
+        <span style="font-size: 11px; font-weight: normal; color: var(--text-tertiary);">Try: "how many mugs do I have" · "value of kettles" · "what is low" · "what did I sell this week"</span>
       </div>
+      <div class="ai-chat-log" id="ai-chat-log"></div>
       <div class="ai-command-input-group">
-        <input type="text" class="ai-command-input" id="ai-query-input" placeholder="Ask e.g., 'how many types of mugs do I have?' or 'mops'..." onkeydown="if(event.key==='Enter') executeAiQuery()">
-        <button class="btn btn-purple" id="ai-search-btn">🔎 Search / Count</button>
+        <input type="text" class="ai-command-input" id="ai-query-input" placeholder="Ask me anything about your inventory..." autocomplete="off">
+        <button class="btn btn-purple" id="ai-search-btn">Ask</button>
+      </div>
+      <div class="ai-chips">
+        <button class="ai-chip" data-ask="What is low on stock?">⚠️ What's low?</button>
+        <button class="ai-chip" data-ask="Total stock value">💰 Stock value</button>
+        <button class="ai-chip" data-ask="What did I sell this week?">📈 Sales this week</button>
+        <button class="ai-chip" data-ask="What should I reorder?">🛒 Reorder suggestions</button>
       </div>
     </div>
-
-    <div id="low-stock-banner" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:10px; border:1px solid var(--accent-orange); background:rgba(234,88,12,0.08); font-size:13px; align-items:center; justify-content:space-between; gap:10px;"></div>
 
     <div class="stats-row">
       <div class="stat-card">
@@ -443,6 +467,7 @@
       <button class="btn" data-open="stocktake-modal">📋 Stock Take</button>
       <button class="btn" data-open="order-modal">⚡ Smart PO Order</button>
       <button class="btn" id="export-csv-btn">Export CSV</button>
+      <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" data-open="backup-modal">💾 Backup / Restore</button>
     </div>
 
     <div class="table-wrap">
@@ -470,7 +495,7 @@
     <div class="modal-overlay" id="ai-forecast-modal">
       <div class="modal" style="max-width: 900px;">
         <h2>🤖 Demand Forecast & Run-Out Engine</h2>
-        <p style="font-size:12px; color:var(--text-tertiary); margin-top:-10px;">Computed from your last 30 days of dispatch &amp; loss records in the audit log. Assumes a 14-day supplier lead time.</p>
+        <p style="font-size:12px; color:var(--text-tertiary); margin-top:-10px;">Computed from your last 30 days of dispatch &amp; loss records, with recent activity weighted more heavily. Lead-time assumption comes from the AI memory (default 14 days).</p>
         <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
             <thead>
@@ -478,6 +503,7 @@
                 <th style="padding: 8px;">Item Name</th>
                 <th style="padding: 8px;">Total Stock</th>
                 <th style="padding: 8px;">30-Day Outflow</th>
+                <th style="padding: 8px;">Moves</th>
                 <th style="padding: 8px;">Burn Rate / Day</th>
                 <th style="padding: 8px;">Run-Out Forecast</th>
                 <th style="padding: 8px;">AI Reorder Level</th>
@@ -602,6 +628,28 @@
           </div>
         </div>
         <div class="order-list" id="bulk-receive-items"></div>
+        <div id="rec-total" style="padding:10px 12px; border:1px dashed var(--border); border-radius:8px; font-size:13px; margin-bottom:8px;">
+          <span style="color:var(--text-tertiary);">Enter quantities to see shipment totals…</span>
+        </div>
+        <button class="btn btn-sm" id="rec-add-item-btn" style="display:none;">+ Receive a new item from this supplier</button>
+        <div id="rec-new-item" style="display:none; border:1px dashed var(--border); border-radius:10px; padding:10px; margin-top:8px;">
+          <div class="form-row">
+            <div class="form-group"><label>Item name *</label><input type="text" id="rn-name"></div>
+            <div class="form-group"><label>SKU *</label><input type="text" id="rn-sku"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Category</label><input type="text" id="rn-category" placeholder="General"></div>
+            <div class="form-group"><label>Qty per carton</label><input type="number" id="rn-qtyPerCarton" value="1" min="1"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Unit cost (KSh)</label><input type="number" id="rn-cost" step="0.01" min="0" value="0"></div>
+            <div class="form-group"><label>Selling price (KSh)</label><input type="number" id="rn-price" step="0.01" min="0" value="0"></div>
+          </div>
+          <div class="modal-actions" style="margin-top:8px;">
+            <button class="btn btn-sm" id="rn-cancel" type="button">Cancel</button>
+            <button class="btn btn-sm btn-primary" id="rn-save" type="button">Add item</button>
+          </div>
+        </div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" data-close="bulk-receive-modal">Cancel</button>
           <button type="button" class="btn btn-primary" id="process-receive-btn">Receive Stock</button>
@@ -762,16 +810,56 @@
     <div class="modal-overlay" id="order-modal">
       <div class="modal">
         <h2>⚡ Smart Purchase Order</h2>
-        <div class="form-group">
-          <label>Select Supplier</label>
-          <select id="order-supplier">
-            <option value="">-- Choose Supplier --</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Select Supplier</label>
+            <select id="order-supplier">
+              <option value="">-- Choose Supplier --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Order Enough To Cover</label>
+            <select id="po-cover">
+              <option value="30" selected>1 Month</option>
+              <option value="14">2 Weeks</option>
+              <option value="60">2 Months</option>
+              <option value="90">3 Months</option>
+            </select>
+          </div>
         </div>
         <div class="order-list" id="order-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" data-close="order-modal">Cancel</button>
           <button type="button" class="btn btn-primary" id="export-po-btn">Export PO CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backup & Restore Modal -->
+    <div class="modal-overlay" id="backup-modal">
+      <div class="modal" style="max-width: 560px;">
+        <h2>💾 Backup &amp; Restore</h2>
+        <div class="stock-info-box" id="backup-summary"></div>
+        <div class="form-group">
+          <button type="button" class="btn btn-primary" id="backup-export-btn" style="width:100%;">⬇️ Download full backup (JSON)</button>
+          <p style="font-size:12px; color:var(--text-tertiary); margin:6px 0 0;">Includes every item, the full movement audit log, and the AI's learned memory — everything, in one file.</p>
+        </div>
+        <div style="border:none; border-top:1px solid var(--border-divider); margin:14px 0;"></div>
+        <div class="form-group">
+          <label>Restore from a backup file (.json)</label>
+          <input type="file" id="backup-file-input" accept=".json,application/json"
+                 style="padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); width:100%; box-sizing:border-box; font-size:14px;">
+        </div>
+        <div class="form-row" style="gap:8px;">
+          <label style="display:flex; gap:6px; align-items:center; font-size:13px; cursor:pointer;">
+            <input type="radio" name="backup-mode" value="merge" checked> Merge <span style="color:var(--text-tertiary);">(add / update, keep the rest)</span>
+          </label>
+          <label style="display:flex; gap:6px; align-items:center; font-size:13px; cursor:pointer;">
+            <input type="radio" name="backup-mode" value="replace"> Replace <span style="color:var(--danger);">(overwrite everything)</span>
+          </label>
+        </div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" data-close="backup-modal">Close</button>
         </div>
       </div>
     </div>
@@ -955,6 +1043,16 @@
       if (document.getElementById('audit-modal').classList.contains('open')) renderAuditLog();
     });
 
+    // AI memory: learned aliases + user preferences. Lives in Firebase so it
+    // persists across devices and sessions — this is how the assistant improves.
+    let aiMemory = { aliases: {}, prefs: { leadTime: LEAD_TIME_DAYS } };
+    function aliasKey(s) { return String(s).toLowerCase().replace(/[.#$[\]]/g, '_'); }
+    db.ref('aiMemory').on('value', (snap) => {
+      const d = snap.val() || {};
+      aiMemory.aliases = d.aliases || {};
+      aiMemory.prefs = Object.assign({ leadTime: LEAD_TIME_DAYS }, d.prefs);
+    });
+
     /* --------------------------- Modal open/close --------------------------- */
     // All [data-open] buttons open their target modal; [data-close] close it.
     // Backdrop click also closes. No inline onclick string interpolation anywhere.
@@ -972,6 +1070,7 @@
         if (id === 'stocktake-modal') renderStockTake();
         if (id === 'order-modal') initOrderModal();
         if (id === 'ai-forecast-modal') renderAiForecast();
+        if (id === 'backup-modal') initBackupModal();
       });
     });
     document.querySelectorAll('[data-close]').forEach(btn => {
@@ -1112,39 +1211,295 @@
 
     /* ------------------------- AI Search Console ------------------------- */
 
-    function executeAiQuery() {
-      const inputEl = document.getElementById('ai-query-input');
-      const rawText = (inputEl.value || '').trim();
-      if (!rawText) return;
+    /* ------------------------- AI Assistant -------------------------
+       A built-in intent engine that understands natural questions and
+       answers from YOUR live inventory and movement history.
+       Runs entirely in the browser — no server, no API key, works offline. */
 
-      // Strip only whole-phrase filler words — never mangle real words like "wall" or "mall".
-      const cleanQuery = rawText.toLowerCase()
-        .replace(/\b(how many|types of|kinds of|do i have|do we have|number of)\b/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    const AI_FILLERS = /\b(please|can you|could you|show me|tell me|i want to know|what is|what's|whats|how many|how much|number of|count of|count|do i have|do we have|types of|kinds of|type of|of|the|a|an|my|our|in|currently|right now)\b/gi;
+    const AI_VERBS = /\b(run out|running out|when will|how long|will last|last me|value|worth|selling price|sell|sold|sales|sale|dispatch|dispatched|supplied|supply|outflow|order|buy|purchase|reorder|low|below|above|stock level|have|left|remaining|show|list|find|get|give|need|should i|check)\b/gi;
+    const cnum = (i, k) => parseFloat(i[k]) || 0;
+    const fmtKsh = n => 'KSh ' + Math.round(n).toLocaleString();
 
-      const searchKey = cleanQuery || rawText.toLowerCase();
-
-      const matches = items.filter(it =>
-        (it.name && it.name.toLowerCase().includes(searchKey)) ||
-        (it.category && it.category.toLowerCase().includes(searchKey)) ||
-        (it.model && it.model.toLowerCase().includes(searchKey))
-      );
-
-      document.getElementById('search').value = searchKey;
-      render();
-
-      if (matches.length === 0) {
-        toast(`No products matching "${searchKey}" were found.`, 'info');
-      } else {
-        const details = matches
-          .map(m => `• ${m.name} (${(parseFloat(m.whCartons) || 0) + (parseFloat(m.shopCartons) || 0)} Ctns)`)
-          .join('\n');
-        toast(`Found ${matches.length} matching type(s) for "${searchKey}":\n${details}`, 'success');
-      }
-      inputEl.value = '';
+    function aiExtractEntity(text) {
+      let t = ' ' + text.toLowerCase().replace(/[^\w\s]/g, ' ') + ' ';
+      t = t.replace(AI_FILLERS, ' ').replace(AI_VERBS, ' ');
+      return t.replace(/\s+/g, ' ').trim();
     }
-    document.getElementById('ai-search-btn').addEventListener('click', executeAiQuery);
+
+    function aiFindItems(entity) {
+      const toks = entity.split(' ').filter(Boolean);
+      if (!toks.length) return [];
+      return items.filter(it => toks.every(tok =>
+        (it.name || '').toLowerCase().includes(tok) ||
+        (it.category || '').toLowerCase().includes(tok) ||
+        (it.model || '').toLowerCase().includes(tok)));
+    }
+
+    // Bigram similarity (0..1) — finds close matches for unknown words
+    function aiSimilarity(a, b) {
+      a = String(a); b = String(b);
+      if (!a.length || !b.length) return 0;
+      const grams = s => { const g = {}; for (let i = 0; i < s.length - 1; i++) g[s.slice(i, i + 2)] = 1; return g; };
+      const A = grams(a), B = grams(b);
+      let inter = 0;
+      for (const k in A) if (B[k]) inter++;
+      return 2 * inter / (Object.keys(A).length + Object.keys(B).length);
+    }
+
+    function aiAddMsg(role, html) {
+      const log = document.getElementById('ai-chat-log');
+      log.style.display = 'flex';
+      const div = document.createElement('div');
+      div.className = 'ai-msg ' + role;
+      div.innerHTML = html;
+      log.appendChild(div);
+      while (log.children.length > 40) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function aiHelpCard() {
+      return `<strong>Here's what I can answer:</strong>
+\u2022 <em>"how many mugs do I have"</em> \u2014 stock counts per item
+\u2022 <em>"value of kettles"</em> / <em>"total stock value"</em> \u2014 cost &amp; retail worth
+\u2022 <em>"what is low"</em> / <em>"what should I reorder"</em> \u2014 reorder suggestions
+\u2022 <em>"when will sugar run out"</em> \u2014 run-out forecast per item
+\u2022 <em>"what did I sell this week"</em> \u2014 sales from your movement history
+\u2022 <em>"what should I order from unilever"</em> \u2014 suggested purchase order\n\u2022 <em>"set lead time to 7 days"</em> \u2014 teach my assumptions\n\u2022 <em>"what have you learned"</em> \u2014 inspect my memory\n\u2022 <em>"how often does sugar move"</em> \u2014 movement frequency\n\u2022 <em>"what should I order this month"</em> \u2014 order sized for a month's demand`;
+      // Note: I also learn new words when you confirm a "did you mean?" suggestion.
+    }
+
+    function askAssistant(rawText) {
+      const text = (rawText || '').trim();
+      if (!text) return;
+      aiAddMsg('user', escapeHtml(text));
+      const q = text.toLowerCase();
+      const entity = aiExtractEntity(text);
+      let found = aiFindItems(entity);
+
+      // Learned vocabulary: if no literal match, try a remembered alias
+      if (!found.length && entity && aiMemory.aliases[aliasKey(entity)]) {
+        const al = aiMemory.aliases[aliasKey(entity)];
+        const t = items.find(i => String(i.id) === String(al.targetId));
+        if (t) {
+          found = [t];
+          db.ref('aiMemory/aliases/' + aliasKey(entity)).transaction(cur => {
+            if (!cur) return cur;
+            cur.uses = (cur.uses || 0) + 1;
+            return cur;
+          });
+        }
+      }
+
+      // ---- 1. greetings / help ----
+      if (/^(hi|hello|hey|help)\b/.test(q) || /what can (you|i)/.test(q)) {
+        aiAddMsg('bot', aiHelpCard());
+        return;
+      }
+
+      // ---- 1b. memory introspection ----
+      if (/\b(what have you learned|show.*learned|your memory|what do you know)\b/.test(q)) {
+        const als = Object.entries(aiMemory.aliases || {});
+        const lead = (aiMemory.prefs && aiMemory.prefs.leadTime) || LEAD_TIME_DAYS;
+        aiAddMsg('bot', `<strong>My memory:</strong>\n\u2022 Lead time assumption: ${lead} days\n\u2022 Learned word mappings: ${als.length}` +
+          (als.length ? '\n' + als.sort((a, b) => (b[1].uses || 0) - (a[1].uses || 0)).slice(0, 8)
+            .map(([k, v]) => `\u2022 "${escapeHtml(k)}" \u2192 ${escapeHtml(v.targetName)} (used ${v.uses || 0}\u00d7)`).join('\n') : ''));
+        return;
+      }
+
+      // ---- 1c. teach the lead-time assumption ----
+      if (/\blead time\b/.test(q) && /\b(set|change|use|make)\b/.test(q)) {
+        const n = parseInt((q.match(/(\d+)/) || [])[1]);
+        if (n >= 1 && n <= 120) {
+          db.ref('aiMemory/prefs').update({ leadTime: n });
+          aiAddMsg('bot', `Learned \u2014 I'll assume a <strong>${n}-day</strong> supplier lead time for all reorder suggestions from now on.\n\nSay "what have you learned" anytime to inspect my memory.`);
+        } else {
+          aiAddMsg('bot', 'Tell me a number of days between 1 and 120, e.g. "set lead time to 7 days".');
+        }
+        return;
+      }
+
+      // ---- 1d. movement frequency: "how often does X move", fast/slow movers ----
+      if (/\b(how often|moves|moving|moved|fastest|slowest|dead stock|not moving|doesn't move)\b/.test(q)) {
+        const fc = computeForecasts();
+        if (found.length) {
+          const lines = found.map(it => {
+            const f = fc.find(x => String(x.it.id) === String(it.id));
+            if (!f || f.moves === 0) return `\u2022 ${escapeHtml(it.name)} \u2014 hasn't moved in 30 days (${f ? f.total : 0} ctns sitting)`;
+            return `\u2022 ${escapeHtml(it.name)} \u2014 moves ${f.moves}\u00d7/30 days (~${(f.out30 / f.moves).toFixed(1)} ctns each) = ${f.monthly.toFixed(1)} ctns/month`;
+          }).join('\n');
+          aiAddMsg('bot', lines);
+          return;
+        }
+        const moving = fc.filter(f => f.moves > 0).sort((a, b) => b.monthly - a.monthly);
+        const idle = fc.filter(f => f.moves === 0);
+        let msg = `<strong>Fastest movers (by ctns/month):</strong>\n` +
+          (moving.length ? moving.slice(0, 5).map(f => `\u2022 ${escapeHtml(f.it.name)} \u2014 ${f.monthly.toFixed(1)}/mo (${f.moves}\u00d7)`).join('\n') : 'No movement recorded in the last 30 days.');
+        if (/\b(slow|dead|not moving|doesn't move)\b/.test(q) && idle.length) {
+          msg += `\n\n<strong>Sitting still (no sales in 30d):</strong>\n` +
+            idle.slice(0, 5).map(f => `\u2022 ${escapeHtml(f.it.name)} \u2014 ${f.total} ctns in stock`).join('\n');
+        }
+        aiAddMsg('bot', msg);
+        return;
+      }
+
+      // ---- 2. suggested order for a supplier (before generic "what to order") ----
+      if (/\b(order|buy|purchase)\b/.test(q)) {
+        const sups = [...new Set(items.map(i => i.supplier).filter(Boolean))]
+          .filter(s => entity && s.toLowerCase().includes(entity));
+        const odays = /\bmonth\b/.test(q) ? 30 : /\bweek\b/.test(q) ? 7 : 30;   // default: a month's cover
+        let pool = computeForecasts().filter(f => f.burn > 0 && Math.ceil(f.burn * odays) > f.total);
+        let label = '';
+        if (sups[0]) { pool = pool.filter(f => f.it.supplier === sups[0]); label = ` for ${escapeHtml(sups[0])}`; }
+        else if (found.length) { pool = pool.filter(f => found.some(x => String(x.id) === String(f.it.id))); label = ` matching "${escapeHtml(entity)}"`; }
+        if (!pool.length) {
+          aiAddMsg('bot', sups[0] ? `Nothing needs ordering from <strong>${escapeHtml(sups[0])}</strong> right now \u2014 stock already covers demand. \u2705`
+            : `Nothing needs ordering right now \u2014 current stock covers expected demand. \u2705 Try "what should I order from <em>supplier name</em>".`);
+          return;
+        }
+        const lines = pool.slice(0, 10).map(f => {
+          const qty = Math.ceil(f.burn * odays) - f.total;
+          return `\u2022 ${escapeHtml(f.it.name)} \u2014 order ${qty} ctns (~${odays}d cover; uses ${f.monthly.toFixed(1)}/mo, have ${f.total}, moves ${f.moves}\u00d7)`;
+        }).join('\n');
+        aiAddMsg('bot', `<strong>Suggested order${label} \u2014 ~${odays} days of cover:</strong>\n${lines}\n\nOpen <strong>\u26a1 Smart PO Order</strong> (set "Order Enough To Cover") to export it.`);
+        return;
+      }
+
+      // ---- 3. run-out forecast ----
+      if (/\b(run.?out|running out|when will|how long|will last)\b/.test(q)) {
+        if (!found.length) { aiAddMsg('bot', `I couldn't find anything matching "${escapeHtml(entity)}". Try the exact item name.`); return; }
+        const fc = computeForecasts();
+        const lines = found.map(it => {
+          const f = fc.find(x => String(x.it.id) === String(it.id));
+          if (!f || f.out30 === 0) return `\u2022 ${escapeHtml(it.name)} \u2014 no recent sales, stock holds steady (${f ? f.total : 0} ctns)`;
+          if (f.total <= 0) return `\u2022 ${escapeHtml(it.name)} \u2014 OUT OF STOCK`;
+          return `\u2022 ${escapeHtml(it.name)} \u2014 ~${Math.ceil(f.daysLeft)} days left at current sales (${f.total} ctns, using ${f.burn.toFixed(1)}/day)`;
+        }).join('\n');
+        aiAddMsg('bot', lines);
+        return;
+      }
+
+      // ---- 4. value / worth ----
+      if (/\b(value|worth|stock value|cost of stock)\b/.test(q)) {
+        if (found.length) {
+          const cost = found.reduce((s, i) => s + (cnum(i, 'whCartons') + cnum(i, 'shopCartons')) * (i.qtyPerCarton || 1) * (parseFloat(i.cost) || 0), 0);
+          const retail = found.reduce((s, i) => s + (cnum(i, 'whCartons') + cnum(i, 'shopCartons')) * (i.qtyPerCarton || 1) * (parseFloat(i.price) || 0), 0);
+          const ctns = found.reduce((s, i) => s + cnum(i, 'whCartons') + cnum(i, 'shopCartons'), 0);
+          aiAddMsg('bot', `<strong>${found.length} matching item(s)</strong> \u2014 ${ctns} ctns\nCost value: <strong>${fmtKsh(cost)}</strong>\nRetail value: <strong>${fmtKsh(retail)}</strong>\nPotential margin: ${fmtKsh(retail - cost)}`);
+        } else {
+          const cost = items.reduce((s, i) => s + (cnum(i, 'whCartons') + cnum(i, 'shopCartons')) * (i.qtyPerCarton || 1) * (parseFloat(i.cost) || 0), 0);
+          const retail = items.reduce((s, i) => s + (cnum(i, 'whCartons') + cnum(i, 'shopCartons')) * (i.qtyPerCarton || 1) * (parseFloat(i.price) || 0), 0);
+          aiAddMsg('bot', `<strong>Your whole inventory (${items.length} items):</strong>\nCost value: <strong>${fmtKsh(cost)}</strong>\nRetail value: <strong>${fmtKsh(retail)}</strong>\nPotential margin: ${fmtKsh(retail - cost)}`);
+        }
+        return;
+      }
+
+      // ---- 5. sales summary from movement history ----
+      if (/\b(sell|sold|sales|dispatch|dispatched|supplied|outflow)\b/.test(q)) {
+        let days = 7;
+        if (/\b(today|yesterday)\b/.test(q)) days = 1;
+        else if (/\b(this month|last 30|month)\b/.test(q)) days = 30;
+        else if (/\b(week)\b/.test(q)) days = 7;
+        const cutoff = Date.now() - days * 86400000;
+        const logs = auditLogs.filter(l => {
+          if (l.action !== 'SUPPLY_CLIENT') return false;
+          const d = parseLogDate(l.date);
+          if (!d || d.getTime() < cutoff) return false;
+          return !entity || found.some(f => f.name === l.itemName);
+        });
+        if (!logs.length) {
+          aiAddMsg('bot', `No sales recorded in the last ${days === 1 ? 'day' : days + ' days'}${entity ? ` for "${escapeHtml(entity)}"` : ''}.`);
+          return;
+        }
+        const byItem = {};
+        let total = 0;
+        logs.forEach(l => {
+          const qty = parseFloat(String(l.qty).replace(/[^\d.]/g, '')) || 0;
+          total += qty;
+          byItem[l.itemName] = (byItem[l.itemName] || 0) + qty;
+        });
+        const top = Object.entries(byItem).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        aiAddMsg('bot', `<strong>Last ${days === 1 ? 'day' : days + ' days'}:</strong> ${logs.length} dispatch(es), ${total} ctns total\n` +
+          top.map(([n, v], i) => `${i + 1}. ${escapeHtml(n)} \u2014 ${v} ctns`).join('\n'));
+        return;
+      }
+
+      // ---- 2. low stock / reorder suggestions ----
+      if (/\b(low stock|reorder|running out|out of stock|below (reorder|min|minimum)|what.*(order|buy)|need to (order|buy))\b/.test(q)) {
+        const lows = computeForecasts().filter(f => f.total <= f.reorder);
+        if (!lows.length) { aiAddMsg('bot', '\u2705 Nothing is at or below its reorder level right now.'); return; }
+        const lines = lows.slice(0, 10).map(f =>
+          `\u2022 ${escapeHtml(f.it.name)} \u2014 ${f.total} ctns left, reorder at ${f.reorder}${f.daysLeft !== Infinity ? ` (~${Math.ceil(f.daysLeft)}d left)` : ''}`).join('\n');
+        aiAddMsg('bot', `\u26a0\ufe0f <strong>${lows.length} item(s) need attention:</strong>\n${lines}${lows.length > 10 ? `\n+${lows.length - 10} more` : ''}\n\nOpen <strong>\u26a1 Smart PO Order</strong> to build the order.`);
+        return;
+      }
+
+      // ---- 7. stock count (default) ----
+      if (found.length) {
+        const totalCtns = found.reduce((s, i) => s + cnum(i, 'whCartons') + cnum(i, 'shopCartons'), 0);
+        const wh = found.reduce((s, i) => s + cnum(i, 'whCartons'), 0);
+        const shop = found.reduce((s, i) => s + cnum(i, 'shopCartons'), 0);
+        const lines = found.slice(0, 8).map(m => `\u2022 ${escapeHtml(m.name)} \u2014 WH ${m.whCartons || 0} / Shop ${m.shopCartons || 0}`).join('\n');
+        aiAddMsg('bot', `<strong>${found.length} matching item type(s)</strong> \u2014 ${totalCtns} ctns total (WH ${wh}, Shop ${shop})\n${lines}${found.length > 8 ? `\n+${found.length - 8} more` : ''}`);
+        // Mirror to the table for a visual view
+        document.getElementById('search').value = entity;
+        render();
+        return;
+      }
+
+      // ---- 8. fallback: suggest the closest item and offer to learn the mapping ----
+      if (entity.length >= 3 && items.length) {
+        let best = null, bestScore = 0;
+        items.forEach(it => {
+          const sc = Math.max(
+            aiSimilarity(entity, (it.name || '').toLowerCase()),
+            aiSimilarity(entity, (it.model || '').toLowerCase()));
+          if (sc > bestScore) { bestScore = sc; best = it; }
+        });
+        if (best && bestScore >= 0.3) {
+          aiAddMsg('bot', `I don't know the word <strong>"${escapeHtml(entity)}"</strong> yet. Did you mean <strong>${escapeHtml(best.name)}</strong>?`);
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-sm';
+          btn.style.marginTop = '6px';
+          btn.dataset.remember = aliasKey(entity) + '|' + best.id;
+          btn.textContent = `\u2705 Yes \u2014 remember "${entity}" as ${best.name}`;
+          document.getElementById('ai-chat-log').lastChild.appendChild(btn);
+          return;
+        }
+      }
+      aiAddMsg('bot', `Hmm \u2014 I don't understand "${escapeHtml(text)}" and couldn't match it to any item.\n\n` + aiHelpCard());
+    }
+
+    document.getElementById('ai-search-btn').addEventListener('click', () => {
+      const inp = document.getElementById('ai-query-input');
+      askAssistant(inp.value);
+      inp.value = '';
+    });
+    document.getElementById('ai-query-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        askAssistant(e.target.value);
+        e.target.value = '';
+      }
+    });
+    document.querySelector('.ai-chips').addEventListener('click', e => {
+      const chip = e.target.closest('[data-ask]');
+      if (chip) askAssistant(chip.dataset.ask);
+    });
+
+    // Learn a new word mapping when the user confirms "Yes — remember"
+    document.getElementById('ai-chat-log').addEventListener('click', e => {
+      const b = e.target.closest('[data-remember]');
+      if (!b) return;
+      const [alias, id] = b.dataset.remember.split('|');
+      const t = items.find(i => String(i.id) === String(id));
+      if (!t) return;
+      db.ref('aiMemory/aliases/' + alias).set({
+        targetId: t.id, targetName: t.name, uses: 0, learnedAt: new Date().toISOString()
+      });
+      toast(`Learned: "${alias}" \u2192 ${t.name}`, 'success');
+      b.disabled = true;
+      b.textContent = `\u2705 Learned "${alias}" \u2192 ${t.name}`;
+    });
 
     /* ------------------------- AI Demand Forecast -------------------------
        Honest engine: derives 30-day outflow from the audit log (SUPPLY_CLIENT
@@ -1154,23 +1509,33 @@
     function computeForecasts() {
       const now = Date.now();
       const cutoff = now - 30 * 24 * 3600 * 1000;
-      const outflowByName = {};
+      const HALF_LIFE_DAYS = 10; // exponential weighting: recent sales count more
+      const weighted = {}, raw = {}, moves = {};
+      let wSum = 0;
 
       auditLogs.forEach(l => {
         if (l.action !== 'SUPPLY_CLIENT' && l.action !== 'DAMAGE_LOSS') return;
         const d = parseLogDate(l.date);
         if (!d || d.getTime() < cutoff) return;
+        const w = Math.pow(0.5, ((now - d.getTime()) / 86400000) / HALF_LIFE_DAYS);
         const qty = parseFloat(String(l.qty).replace(/[^\d.]/g, '')) || 0;
-        outflowByName[l.itemName] = (outflowByName[l.itemName] || 0) + qty;
+        const key = l.itemId || l.itemName;   // id-first: renames don't orphan history
+        weighted[key] = (weighted[key] || 0) + qty * w;
+        raw[key] = (raw[key] || 0) + qty;
+        moves[key] = (moves[key] || 0) + 1;
+        wSum += w;
       });
 
+      const lead = Math.max(1, parseInt(aiMemory.prefs && aiMemory.prefs.leadTime) || LEAD_TIME_DAYS);
       return items.map(it => {
         const total = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
-        const out30 = outflowByName[it.name] || 0;
-        const burn = out30 / 30;
+        const wOut = (weighted[it.id] || 0) + (weighted[it.name] || 0);
+        const out30 = (raw[it.id] || 0) + (raw[it.name] || 0);
+        const mv = (moves[it.id] || 0) + (moves[it.name] || 0);
+        const burn = wSum > 0 ? wOut / wSum : 0;
         const daysLeft = burn > 0 ? total / burn : Infinity;
-        const reorder = Math.max(parseInt(it.min) || 2, Math.ceil(burn * LEAD_TIME_DAYS));
-        return { it, total, out30, burn, daysLeft, reorder };
+        const reorder = Math.max(parseInt(it.min) || 2, Math.ceil(burn * lead));
+        return { it, total, out30, moves: mv, monthly: burn * 30, burn, daysLeft, reorder };
       }).sort((a, b) => a.daysLeft - b.daysLeft);
     }
 
@@ -1179,7 +1544,7 @@
       const rows = computeForecasts();
 
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-tertiary);">No items in inventory.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--text-tertiary);">No items in inventory.</td></tr>';
         return;
       }
 
@@ -1209,6 +1574,7 @@
             <td style="padding:8px;"><strong>${escapeHtml(it.name)}</strong></td>
             <td style="padding:8px;">${total} ctns</td>
             <td style="padding:8px;">${out30 % 1 === 0 ? out30 : out30.toFixed(1)} ctns</td>
+            <td style="padding:8px;">${moves}×</td>
             <td style="padding:8px;">${burn > 0 ? burn.toFixed(2) : '-'}</td>
             <td style="padding:8px;">${runOutHtml}</td>
             <td style="padding:8px; font-weight:600;">${reorder} ctns</td>
@@ -1503,21 +1869,53 @@
     }
     document.getElementById('receive-supplier-select').addEventListener('change', renderBulkReceiveItems);
 
+    // Live shipment totals: cartons, cost value, damaged count
+    function updateRecTotal() {
+      let ctns = 0, value = 0, damaged = 0, lines = 0;
+      document.querySelectorAll('#bulk-receive-items [data-rec-qty]').forEach(inp => {
+        const id = inp.dataset.recQty;
+        const qty = parseFloat(inp.value) || 0;
+        if (qty <= 0) return;
+        lines++;
+        ctns += qty;
+        const dmgInp = document.querySelector(`[data-rec-dmg="${CSS.escape(id)}"]`);
+        damaged += Math.min(qty, (parseFloat(dmgInp && dmgInp.value) || 0));
+        const costInp = document.querySelector(`[data-rec-cost="${CSS.escape(id)}"]`);
+        value += qty * (parseFloat(costInp && costInp.value) || 0);
+      });
+      const el = document.getElementById('rec-total');
+      if (!lines) {
+        el.innerHTML = '<span style="color:var(--text-tertiary);">Enter quantities to see shipment totals…</span>';
+        return;
+      }
+      const dmgNote = damaged ? ` · <span style="color:var(--danger);">⛔ ${damaged} damaged (${ctns - damaged} good)</span>` : '';
+      el.innerHTML = `<strong>${ctns} cartons</strong> · cost value <strong>KSh ${Math.round(value).toLocaleString()}</strong>${dmgNote}`;
+    }
+    document.getElementById('bulk-receive-items').addEventListener('input', updateRecTotal);
+
     function renderBulkReceiveItems() {
       const supplier = document.getElementById('receive-supplier-select').value;
       const container = document.getElementById('bulk-receive-items');
-      if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; return; }
+      document.getElementById('rec-new-item').style.display = 'none';
+      document.getElementById('rec-add-item-btn').style.display = supplier ? 'inline-block' : 'none';
+      if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; updateRecTotal(); return; }
       const list = items.filter(i => i.supplier === supplier).sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      if (!list.length) { container.innerHTML = '<p style="padding:20px; text-align:center;">No items from this supplier.</p>'; return; }
+      if (!list.length) { container.innerHTML = '<p style="padding:20px; text-align:center;">No items from this supplier yet — add one below.</p>'; updateRecTotal(); return; }
       container.innerHTML = list.map(it => `
-        <div class="order-item">
-          <div class="order-item-info">
+        <div class="order-item" style="flex-wrap:wrap; row-gap:6px;" data-row="${escapeHtml(it.id)}">
+          <div class="order-item-info" style="min-width:150px;">
             <div class="order-item-name">${escapeHtml(it.name)}</div>
-            <div class="order-item-meta">WH ${it.whCartons || 0} | Shop ${it.shopCartons || 0}</div>
+            <div class="order-item-meta">WH ${it.whCartons || 0} | Shop ${it.shopCartons || 0} · cost KSh ${(parseFloat(it.cost) || 0).toFixed(2)}</div>
           </div>
-          <input type="number" class="order-qty" data-rec="${escapeHtml(it.id)}" placeholder="0" min="0" step="any">
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:flex-end;">
+            <div class="rec-field"><span>Qty</span><input type="number" class="rec-input" data-rec-qty="${escapeHtml(it.id)}" placeholder="0" min="0" step="any"></div>
+            <div class="rec-field"><span>Damaged</span><input type="number" class="rec-input" data-rec-dmg="${escapeHtml(it.id)}" placeholder="0" min="0" step="any"></div>
+            <div class="rec-field"><span>Unit cost</span><input type="number" class="rec-input rec-cost" data-rec-cost="${escapeHtml(it.id)}" value="${parseFloat(it.cost) || 0}" min="0" step="0.01"></div>
+            <div class="rec-field"><span>Sell price</span><input type="number" class="rec-input rec-cost" data-rec-price="${escapeHtml(it.id)}" value="${parseFloat(it.price) || 0}" min="0" step="0.01"></div>
+          </div>
         </div>
       `).join('');
+      updateRecTotal();
     }
 
     document.getElementById('process-receive-btn').addEventListener('click', () => {
@@ -1535,31 +1933,94 @@
         : new Date().toLocaleDateString('en-GB');
       const recRefPart = recRef ? ` · Ref: ${recRef}` : '';
       const receiveRoute = `Supplier ➔ ${dest.toUpperCase()}${recRefPart} · ${recDateLabel}`;
+      const damageRoute = `${dest.toUpperCase()} · damaged on arrival${recRefPart} · ${recDateLabel}`;
 
-      const inputs = [...document.querySelectorAll('#bulk-receive-items [data-rec]')];
       const jobs = [];
+      let qtyLines = 0, priceLines = 0;
 
-      inputs.forEach(inp => {
-        const addVal = parseFloat(inp.value) || 0;
-        if (addVal <= 0) return;
-        const id = inp.dataset.rec;
-        const item = items.find(i => String(i.id) === id);
-        if (!item) return;
-        jobs.push(
-          db.ref('items/' + id + '/' + locKey).transaction(cur => (parseFloat(cur) || 0) + addVal)
-            .then(res => {
-              if (res.committed) pushLog(makeLog('RECEIVE', item.name, `${addVal} Cartons`, receiveRoute, { itemId: id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) + addVal }));
-              return res.committed;
-            })
-        );
+      items.filter(i => i.supplier === supplier).forEach(item => {
+        const id = String(item.id);
+        const qtyInp = document.querySelector(`[data-rec-qty="${CSS.escape(id)}"]`);
+        if (!qtyInp) return;
+        const qty = parseFloat(qtyInp.value) || 0;
+        const dmgInp = document.querySelector(`[data-rec-dmg="${CSS.escape(id)}"]`);
+        const dmg = Math.min(qty, (parseFloat(dmgInp && dmgInp.value) || 0));
+        const costInp = document.querySelector(`[data-rec-cost="${CSS.escape(id)}"]`);
+        const priceInp = document.querySelector(`[data-rec-price="${CSS.escape(id)}"]`);
+        const newCost = costInp ? (parseFloat(costInp.value) || 0) : (parseFloat(item.cost) || 0);
+        const newPrice = priceInp ? (parseFloat(priceInp.value) || 0) : (parseFloat(item.price) || 0);
+        const prev = parseFloat(item[locKey]) || 0;
+
+        // Price/cost updates captured at the receiving desk
+        if (newCost !== (parseFloat(item.cost) || 0) || newPrice !== (parseFloat(item.price) || 0)) {
+          priceLines++;
+          db.ref('items/' + id).update({ cost: newCost, price: newPrice });
+          pushLog(makeLog('PRICE_UPDATE', item.name,
+            `Cost ${(parseFloat(item.cost) || 0).toFixed(2)} → ${newCost.toFixed(2)} · Price ${(parseFloat(item.price) || 0).toFixed(2)} → ${newPrice.toFixed(2)}`,
+            `At receiving${recRefPart}`));
+        }
+
+        if (qty > 0) {
+          qtyLines++;
+          const good = qty - dmg;
+          jobs.push(
+            db.ref('items/' + id + '/' + locKey).transaction(cur => Math.max(0, (parseFloat(cur) || 0) + good))
+              .then(res => {
+                if (!res.committed) return false;
+                if (good > 0) pushLog(makeLog('RECEIVE', item.name, `${good} Cartons`, receiveRoute, { itemId: id, locKey, prev, newVal: prev + good }));
+                if (dmg > 0) pushLog(makeLog('DAMAGE_LOSS', item.name, `${dmg} Cartons`, damageRoute, { itemId: id, locKey, prev: prev + good, newVal: prev + good - dmg }));
+                return true;
+              })
+          );
+        }
       });
 
-      if (!jobs.length) { toast('Enter at least one quantity to receive.', 'error'); return; }
+      if (!qtyLines && !priceLines) { toast('Enter at least one quantity to receive.', 'error'); return; }
 
-      Promise.all(jobs).then(results => {
-        const done = results.filter(Boolean).length;
-        toast(`Received ${done} product line(s) into ${dest.toUpperCase()}.`, 'success');
-        closeModal('bulk-receive-modal');
+      const parts = [];
+      if (qtyLines) parts.push(`received ${qtyLines} line(s) into ${dest.toUpperCase()}`);
+      if (priceLines) parts.push(`updated prices on ${priceLines} line(s)`);
+      const finish = () => { toast(parts.join(' · '), 'success'); closeModal('bulk-receive-modal'); };
+      if (jobs.length) Promise.all(jobs).then(finish);
+      else finish();
+    });
+
+    // Inline "receive a new item" form
+    document.getElementById('rec-add-item-btn').addEventListener('click', () => {
+      const f = document.getElementById('rec-new-item');
+      const show = f.style.display === 'none';
+      f.style.display = show ? 'block' : 'none';
+      if (show) document.getElementById('rn-name').focus();
+    });
+    document.getElementById('rn-cancel').addEventListener('click', () => {
+      document.getElementById('rec-new-item').style.display = 'none';
+    });
+    document.getElementById('rn-save').addEventListener('click', () => {
+      const supplier = document.getElementById('receive-supplier-select').value;
+      const name = document.getElementById('rn-name').value.trim();
+      const sku = document.getElementById('rn-sku').value.trim();
+      if (!supplier) { toast('Select a supplier first.', 'error'); return; }
+      if (!name || !sku) { toast('Item name and SKU are required.', 'error'); return; }
+      const clash = items.find(i => String(i.sku).toLowerCase() === sku.toLowerCase());
+      if (clash) { toast(`SKU "${sku}" already belongs to "${clash.name}".`, 'error'); return; }
+      const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      db.ref('items/' + id).set({
+        id, name, sku,
+        model: '',
+        category: document.getElementById('rn-category').value.trim() || 'General',
+        qtyPerCarton: Math.max(1, parseInt(document.getElementById('rn-qtyPerCarton').value) || 1),
+        unit: 'pcs',
+        cost: Math.max(0, parseFloat(document.getElementById('rn-cost').value) || 0),
+        price: Math.max(0, parseFloat(document.getElementById('rn-price').value) || 0),
+        supplier,
+        min: 2,
+        whCartons: 0,
+        shopCartons: 0
+      }).then(() => {
+        toast(`"${name}" added under ${supplier} — now enter its receiving quantity.`, 'success');
+        ['rn-name', 'rn-sku', 'rn-category'].forEach(x => { document.getElementById(x).value = ''; });
+        document.getElementById('rec-new-item').style.display = 'none';
+        renderBulkReceiveItems();
       });
     });
 
@@ -1865,12 +2326,14 @@
       document.getElementById('order-items').innerHTML = '';
     }
     document.getElementById('order-supplier').addEventListener('change', renderOrderItems);
+    document.getElementById('po-cover').addEventListener('change', renderOrderItems);
 
     function renderOrderItems() {
       const supplier = document.getElementById('order-supplier').value;
       const container = document.getElementById('order-items');
       if (!supplier) { container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">Select a supplier.</p>'; return; }
 
+      const days = Math.max(1, parseInt(document.getElementById('po-cover').value) || 30);
       const forecasts = computeForecasts();
       const fById = {};
       forecasts.forEach(f => { fById[String(f.it.id)] = f; });
@@ -1878,14 +2341,19 @@
       const list = items.filter(i => i.supplier === supplier).sort((a, b) => String(a.name).localeCompare(String(b.name)));
       if (!list.length) { container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">No items from this supplier.</p>'; return; }
 
+      // Demand-driven cover: order what's needed to last `days`, minus what's already in stock.
+      // Items that haven't moved get 0 — you don't order what doesn't sell.
       container.innerHTML = list.map(it => {
         const f = fById[String(it.id)];
-        const suggested = f ? Math.max(0, f.reorder - f.total) : (parseInt(it.min) || 2);
+        const suggested = (f && f.burn > 0) ? Math.max(0, Math.ceil(f.burn * days) - f.total) : 0;
+        const meta = f
+          ? `moves ${f.moves}×/30d · uses ${f.monthly.toFixed(1)} ctns/mo · in stock ${f.total}`
+          : 'no movement on record';
         return `
           <div class="order-item">
             <div class="order-item-info">
               <div class="order-item-name">${escapeHtml(it.name)}</div>
-              <div class="order-item-meta">In stock: ${f ? f.total : 0} ctns · Suggested: ${suggested} ctns</div>
+              <div class="order-item-meta">${meta}</div>
             </div>
             <input type="number" class="order-qty" data-po="${escapeHtml(it.id)}" value="${suggested}" min="0" step="any">
           </div>
@@ -1982,6 +2450,90 @@
     }
 
     /* --------------------------- CSV Export --------------------------- */
+
+    /* --------------------------- Backup & Restore --------------------------- */
+
+    function initBackupModal() {
+      document.getElementById('backup-summary').innerHTML =
+        `Current database: <strong>${items.length}</strong> item(s) · <strong>${auditLogs.length}</strong> audit ` +
+        `entr${auditLogs.length === 1 ? 'y' : 'ies'} · <strong>${Object.keys(aiMemory.aliases || {}).length}</strong> learned word(s)`;
+    }
+
+    function exportBackup() {
+      const backup = {
+        app: 'inventory-tracker',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        counts: { items: items.length, auditLogs: auditLogs.length },
+        items,              // full array
+        auditLogs,          // full array
+        aiMemory            // aliases + prefs
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast('Full backup downloaded.', 'success');
+    }
+
+    // Accepts either an array of {id: ...} records or an already-keyed object
+    function toKeyed(records) {
+      const out = {};
+      const list = Array.isArray(records) ? records : Object.values(records || {});
+      list.forEach(r => { if (r && r.id !== undefined && r.id !== null) out[r.id] = r; });
+      return out;
+    }
+
+    document.getElementById('backup-export-btn').addEventListener('click', exportBackup);
+
+    document.getElementById('backup-file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const mode = document.querySelector('input[name="backup-mode"]:checked').value;
+      const reader = new FileReader();
+      reader.onload = () => {
+        let b;
+        try { b = JSON.parse(String(reader.result)); }
+        catch (err) { toast('That file is not valid JSON.', 'error'); return; }
+
+        const bItems = toKeyed(b.items);
+        const bLogs = toKeyed(b.auditLogs);
+        const nItems = Object.keys(bItems).length;
+        const nLogs = Object.keys(bLogs).length;
+        if (!nItems && !nLogs) { toast('No items or audit entries found in that file.', 'error'); return; }
+
+        if (mode === 'replace') {
+          const when = b.exportedAt ? new Date(b.exportedAt).toLocaleString() : 'unknown date';
+          if (!confirm(`REPLACE your entire database with this backup?\n\n` +
+              `${nItems} items, ${nLogs} audit entries (backed up: ${when}).\n\n` +
+              `ALL current data that is not in this file will be PERMANENTLY deleted. Continue?`)) return;
+          Promise.all([
+            db.ref('items').set(nItems ? bItems : null),
+            db.ref('auditLogs').set(nLogs ? bLogs : null),
+            db.ref('aiMemory').set(b.aiMemory || null)
+          ]).then(() => {
+            toast(`Restore complete — database replaced (${nItems} items, ${nLogs} entries).`, 'success');
+            closeModal('backup-modal');
+          }).catch(err => toast('Restore failed: ' + err.message, 'error'));
+        } else {
+          const updates = {};
+          Object.entries(bItems).forEach(([id, r]) => { updates['/items/' + id] = r; });
+          Object.entries(bLogs).forEach(([id, r]) => { updates['/auditLogs/' + id] = r; });
+          if (b.aiMemory) updates['/aiMemory'] = b.aiMemory;
+          db.ref().update(updates)
+            .then(() => {
+              toast(`Merged backup: ${nItems} item(s), ${nLogs} audit entries added/updated.`, 'success');
+              closeModal('backup-modal');
+            })
+            .catch(err => toast('Restore failed: ' + err.message, 'error'));
+        }
+      };
+      reader.readAsText(file);
+    });
 
     document.getElementById('export-csv-btn').addEventListener('click', () => {
       const headers = ['Name', 'Model', 'SKU', 'Category', 'Qty Per Carton', 'Unit', 'Warehouse Cartons', 'Shop Cartons', 'Unit Cost', 'Unit Price', 'Supplier', 'Min Reorder'];
