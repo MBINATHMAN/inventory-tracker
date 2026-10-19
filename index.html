@@ -765,6 +765,8 @@
           <input type="date" id="audit-from" title="From date" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px;">
           <span style="color:var(--text-tertiary); font-size:13px;">to</span>
           <input type="date" id="audit-to" title="To date" style="padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px;">
+          <input type="text" id="audit-search" placeholder="🔍 Search item, client, invoice no…"
+                 style="flex:1; min-width:180px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px; outline:none;">
           <button class="btn btn-sm" id="audit-clear-btn">Clear</button>
           <button class="btn btn-sm" id="audit-export-btn" style="margin-left:auto; border-color:var(--positive); color:var(--positive);">Export CSV</button>
         </div>
@@ -2222,15 +2224,21 @@
     /* --------------------------- Audit Log --------------------------- */
 
     const REVERSIBLE_ACTIONS = ['SUPPLY_CLIENT', 'DAMAGE_LOSS', 'RECEIVE', 'TRANSFER', 'STOCK_TAKE'];
-    let auditFrom = '', auditTo = '';
+    let auditFrom = '', auditTo = '', auditQuery = '';
 
     function getFilteredAudit() {
       return auditLogs.filter(l => {
-        if (!auditFrom && !auditTo) return true;
-        const d = parseLogDate(l.date);
-        if (!d) return true;
-        if (auditFrom && d < new Date(auditFrom + 'T00:00:00')) return false;
-        if (auditTo && d > new Date(auditTo + 'T23:59:59')) return false;
+        if (auditFrom || auditTo) {
+          const d = parseLogDate(l.date);
+          if (d) {
+            if (auditFrom && d < new Date(auditFrom + 'T00:00:00')) return false;
+            if (auditTo && d > new Date(auditTo + 'T23:59:59')) return false;
+          }
+        }
+        if (auditQuery) {
+          const hay = ((l.itemName || '') + ' ' + (l.action || '') + ' ' + (l.route || '') + ' ' + (l.qty || '')).toLowerCase();
+          if (!hay.includes(auditQuery)) return false;
+        }
         return true;
       });
     }
@@ -2240,7 +2248,7 @@
       const rows = getFilteredAudit();
       if (!rows.length) {
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-tertiary);">' +
-          (auditLogs.length ? 'No movements in the selected date range.' : 'No movements recorded yet.') + '</td></tr>';
+          (auditLogs.length ? 'No movements match the current filters.' : 'No movements recorded yet.') + '</td></tr>';
         return;
       }
       tbody.innerHTML = rows.map(l => `
@@ -2295,10 +2303,12 @@
     });
     on('audit-from', 'change', e => { auditFrom = e.target.value; renderAuditLog(); });
     on('audit-to', 'change', e => { auditTo = e.target.value; renderAuditLog(); });
+    on('audit-search', 'input', e => { auditQuery = e.target.value.trim().toLowerCase(); renderAuditLog(); });
     on('audit-clear-btn', 'click', () => {
-      auditFrom = ''; auditTo = '';
+      auditFrom = ''; auditTo = ''; auditQuery = '';
       document.getElementById('audit-from').value = '';
       document.getElementById('audit-to').value = '';
+      document.getElementById('audit-search').value = '';
       renderAuditLog();
     });
     on('audit-export-btn', 'click', () => {
