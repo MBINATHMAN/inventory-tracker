@@ -430,6 +430,8 @@
       </div>
     </div>
 
+    <div id="low-stock-banner" style="display:none; margin-bottom:16px; padding:10px 14px; border-radius:10px; border:1px solid var(--accent-orange); background:rgba(234,88,12,0.08); font-size:13px; align-items:center; justify-content:space-between; gap:10px;"></div>
+
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-label">Total items</div>
@@ -1118,6 +1120,13 @@
     });
 
     function openModal(id) { document.getElementById(id).classList.add('open'); }
+
+    // Safe listener attachment: a missing element must NEVER kill the app again
+    function on(id, ev, fn) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener(ev, fn);
+      else console.warn('App: missing element #' + id);
+    }
     function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
     /* ------------------------------ Rendering ------------------------------ */
@@ -1200,6 +1209,7 @@
       // Low-stock banner
       const lowItems = items.filter(i => (num(i, 'whCartons') + num(i, 'shopCartons')) <= (parseInt(i.min) || 2));
       const banner = document.getElementById('low-stock-banner');
+      if (!banner) return;
       if (lowItems.length) {
         const names = lowItems.slice(0, 4).map(i => `${escapeHtml(i.name)} (${num(i, 'whCartons') + num(i, 'shopCartons')})`).join(', ');
         banner.style.display = 'flex';
@@ -1211,7 +1221,7 @@
     }
 
     // "View" on the banner applies the low-stock filter
-    document.getElementById('low-stock-banner').addEventListener('click', e => {
+    on('low-stock-banner', 'click', e => {
       if (!e.target.closest('#low-stock-view-btn')) return;
       document.getElementById('filter-low-stock').checked = true;
       render();
@@ -1219,7 +1229,7 @@
     });
 
     // Delegated row actions — immune to special characters in names/ids.
-    document.getElementById('tbody').addEventListener('click', e => {
+    on('tbody', 'click', e => {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
       const { act, id } = btn.dataset;
@@ -1240,8 +1250,8 @@
       });
     });
 
-    document.getElementById('search').addEventListener('input', render);
-    document.getElementById('filter-low-stock').addEventListener('change', render);
+    on('search', 'input', render);
+    on('filter-low-stock', 'change', render);
 
     /* ------------------------- AI Search Console ------------------------- */
 
@@ -1504,12 +1514,12 @@
       aiAddMsg('bot', `Hmm \u2014 I don't understand "${escapeHtml(text)}" and couldn't match it to any item.\n\n` + aiHelpCard());
     }
 
-    document.getElementById('ai-search-btn').addEventListener('click', () => {
+    on('ai-search-btn', 'click', () => {
       const inp = document.getElementById('ai-query-input');
       askAssistant(inp.value);
       inp.value = '';
     });
-    document.getElementById('ai-query-input').addEventListener('keydown', e => {
+    on('ai-query-input', 'keydown', e => {
       if (e.key === 'Enter') {
         askAssistant(e.target.value);
         e.target.value = '';
@@ -1521,7 +1531,7 @@
     });
 
     // Learn a new word mapping when the user confirms "Yes — remember"
-    document.getElementById('ai-chat-log').addEventListener('click', e => {
+    on('ai-chat-log', 'click', e => {
       const b = e.target.closest('[data-remember]');
       if (!b) return;
       const [alias, id] = b.dataset.remember.split('|');
@@ -1634,12 +1644,12 @@
 
       renderPriceList();
     }
-    document.getElementById('pl-supplier').addEventListener('change', renderPriceList);
-    document.getElementById('pl-category').addEventListener('change', renderPriceList);
-    document.getElementById('pl-type').addEventListener('change', renderPriceList);
+    on('pl-supplier', 'change', renderPriceList);
+    on('pl-category', 'change', renderPriceList);
+    on('pl-type', 'change', renderPriceList);
 
     // Print with a meaningful document title (used as the PDF filename in Chrome)
-    document.getElementById('pl-print-btn').addEventListener('click', () => {
+    on('pl-print-btn', 'click', () => {
       const supplier = document.getElementById('pl-supplier').value;
       const originalTitle = document.title;
       document.title = supplier ? `Price List - ${supplier}` : originalTitle;
@@ -1649,7 +1659,7 @@
     });
 
     // Save the price list as a real .xlsx workbook (falls back to CSV offline)
-    document.getElementById('pl-excel-btn').addEventListener('click', () => {
+    on('pl-excel-btn', 'click', () => {
       const supplier = document.getElementById('pl-supplier').value;
       if (!supplier) { toast('Select a supplier first.', 'error'); return; }
       const category = document.getElementById('pl-category').value;
@@ -1806,11 +1816,11 @@
 
     /* --------------------------- CSV Import --------------------------- */
 
-    document.getElementById('csv-import-btn').addEventListener('click', () => {
+    on('csv-import-btn', 'click', () => {
       document.getElementById('csv-file-input').click();
     });
 
-    document.getElementById('csv-file-input').addEventListener('change', e => {
+    on('csv-file-input', 'change', e => {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -1902,7 +1912,7 @@
       document.getElementById('rec-date').value = new Date().toISOString().slice(0, 10);
       renderBulkReceiveItems();
     }
-    document.getElementById('receive-supplier-select').addEventListener('change', renderBulkReceiveItems);
+    on('receive-supplier-select', 'change', renderBulkReceiveItems);
 
     // Live shipment totals: cartons, cost value, damaged count
     function updateRecTotal() {
@@ -1926,7 +1936,7 @@
       const dmgNote = damaged ? ` · <span style="color:var(--danger);">⛔ ${damaged} damaged (${ctns - damaged} good)</span>` : '';
       el.innerHTML = `<strong>${ctns} cartons</strong> · cost value <strong>KSh ${Math.round(value).toLocaleString()}</strong>${dmgNote}`;
     }
-    document.getElementById('bulk-receive-items').addEventListener('input', updateRecTotal);
+    on('bulk-receive-items', 'input', updateRecTotal);
 
     function renderBulkReceiveItems() {
       const selectedSupplier = (document.getElementById('receive-supplier-select').value || '').trim().toLowerCase();
@@ -1954,7 +1964,7 @@
       updateRecTotal();
     }
 
-    document.getElementById('process-receive-btn').addEventListener('click', () => {
+    on('process-receive-btn', 'click', () => {
       const dest = document.getElementById('rec-destination').value;
       const supplier = document.getElementById('receive-supplier-select').value;
       if (!supplier) { toast('Please select a supplier.', 'error'); return; }
@@ -2022,16 +2032,16 @@
     });
 
     // Inline "receive a new item" form
-    document.getElementById('rec-add-item-btn').addEventListener('click', () => {
+    on('rec-add-item-btn', 'click', () => {
       const f = document.getElementById('rec-new-item');
       const show = f.style.display === 'none';
       f.style.display = show ? 'block' : 'none';
       if (show) document.getElementById('rn-name').focus();
     });
-    document.getElementById('rn-cancel').addEventListener('click', () => {
+    on('rn-cancel', 'click', () => {
       document.getElementById('rec-new-item').style.display = 'none';
     });
-    document.getElementById('rn-save').addEventListener('click', () => {
+    on('rn-save', 'click', () => {
       const supplier = document.getElementById('receive-supplier-select').value;
       const name = document.getElementById('rn-name').value.trim();
       const sku = document.getElementById('rn-sku').value.trim();
@@ -2068,7 +2078,7 @@
       updateTransferInfo();
       openModal('transfer-modal');
     }
-    document.getElementById('transfer-route').addEventListener('change', updateTransferInfo);
+    on('transfer-route', 'change', updateTransferInfo);
 
     function updateTransferInfo() {
       const id = document.getElementById('transfer-id').value;
@@ -2078,7 +2088,7 @@
         `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons || 0} ctns | Shop: ${item.shopCartons || 0} ctns`;
     }
 
-    document.getElementById('transfer-form').addEventListener('submit', e => {
+    on('transfer-form', 'submit', e => {
       e.preventDefault();
       const id = document.getElementById('transfer-id').value;
       const val = parseFloat(document.getElementById('transfer-input-val').value) || 0;
@@ -2122,7 +2132,7 @@
       updateDispatchInfo();
       openModal('dispatch-modal');
     }
-    document.getElementById('dispatch-source').addEventListener('change', updateDispatchInfo);
+    on('dispatch-source', 'change', updateDispatchInfo);
 
     function updateDispatchInfo() {
       const id = document.getElementById('dispatch-id').value;
@@ -2134,7 +2144,7 @@
         `Product: <strong>${escapeHtml(item.name)}</strong><br>Available at ${src.toUpperCase()}: ${avail} ctns`;
     }
 
-    document.getElementById('dispatch-form').addEventListener('submit', e => {
+    on('dispatch-form', 'submit', e => {
       e.preventDefault();
       const id = document.getElementById('dispatch-id').value;
       const val = parseFloat(document.getElementById('dispatch-input-val').value) || 0;
@@ -2179,7 +2189,7 @@
       openModal('loss-modal');
     }
 
-    document.getElementById('loss-form').addEventListener('submit', e => {
+    on('loss-form', 'submit', e => {
       e.preventDefault();
       const id = document.getElementById('loss-id').value;
       const val = parseFloat(document.getElementById('loss-input-val').value) || 0;
@@ -2279,19 +2289,19 @@
       });
     }
 
-    document.getElementById('audit-log-tbody').addEventListener('click', e => {
+    on('audit-log-tbody', 'click', e => {
       const btn = e.target.closest('[data-undo]');
       if (btn) undoMovement(btn.dataset.undo);
     });
-    document.getElementById('audit-from').addEventListener('change', e => { auditFrom = e.target.value; renderAuditLog(); });
-    document.getElementById('audit-to').addEventListener('change', e => { auditTo = e.target.value; renderAuditLog(); });
-    document.getElementById('audit-clear-btn').addEventListener('click', () => {
+    on('audit-from', 'change', e => { auditFrom = e.target.value; renderAuditLog(); });
+    on('audit-to', 'change', e => { auditTo = e.target.value; renderAuditLog(); });
+    on('audit-clear-btn', 'click', () => {
       auditFrom = ''; auditTo = '';
       document.getElementById('audit-from').value = '';
       document.getElementById('audit-to').value = '';
       renderAuditLog();
     });
-    document.getElementById('audit-export-btn').addEventListener('click', () => {
+    on('audit-export-btn', 'click', () => {
       const rows = getFilteredAudit();
       if (!rows.length) { toast('Nothing to export in the current view.', 'error'); return; }
       const dateStr = new Date().toISOString().slice(0, 10);
@@ -2315,9 +2325,9 @@
         `;
       }).join('');
     }
-    document.getElementById('stocktake-location').addEventListener('change', renderStockTake);
+    on('stocktake-location', 'change', renderStockTake);
 
-    document.getElementById('save-stocktake-btn').addEventListener('click', () => {
+    on('save-stocktake-btn', 'click', () => {
       const loc = document.getElementById('stocktake-location').value;
       const locKey = loc === 'warehouse' ? 'whCartons' : 'shopCartons';
       const updates = {};
@@ -2361,8 +2371,8 @@
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
       document.getElementById('order-items').innerHTML = '';
     }
-    document.getElementById('order-supplier').addEventListener('change', renderOrderItems);
-    document.getElementById('po-cover').addEventListener('change', renderOrderItems);
+    on('order-supplier', 'change', renderOrderItems);
+    on('po-cover', 'change', renderOrderItems);
 
     function renderOrderItems() {
       const supplier = document.getElementById('order-supplier').value;
@@ -2397,7 +2407,7 @@
       }).join('');
     }
 
-    document.getElementById('export-po-btn').addEventListener('click', () => {
+    on('export-po-btn', 'click', () => {
       const supplier = document.getElementById('order-supplier').value;
       if (!supplier) { toast('Select a supplier first.', 'error'); return; }
 
@@ -2442,7 +2452,7 @@
       openModal('item-modal');
     }
 
-    document.getElementById('item-form').addEventListener('submit', e => {
+    on('item-form', 'submit', e => {
       e.preventDefault();
       const id = document.getElementById('edit-id').value || (Date.now() + '_' + Math.random().toString(36).slice(2, 8));
       const existing = items.find(i => String(i.id) === String(id));
@@ -2523,9 +2533,9 @@
       return out;
     }
 
-    document.getElementById('backup-export-btn').addEventListener('click', exportBackup);
+    on('backup-export-btn', 'click', exportBackup);
 
-    document.getElementById('backup-file-input').addEventListener('change', e => {
+    on('backup-file-input', 'change', e => {
       const file = e.target.files[0];
       e.target.value = '';
       if (!file) return;
@@ -2572,7 +2582,7 @@
     });
 
     // ---- Recover audit history from an audit-log CSV export ----
-    document.getElementById('audit-csv-input').addEventListener('change', e => {
+    on('audit-csv-input', 'change', e => {
       const file = e.target.files[0];
       e.target.value = '';
       if (!file) return;
@@ -2630,7 +2640,7 @@
     });
 
     // ---- Write-path diagnostics: proves new movements can be recorded ----
-    document.getElementById('diag-btn').addEventListener('click', () => {
+    on('diag-btn', 'click', () => {
       const testId = 'selftest_' + Date.now();
       db.ref('auditLogs/' + testId).set({
         id: testId,
@@ -2645,7 +2655,7 @@
       }).catch(err => toast('❌ Audit write FAILED: ' + err.message, 'error'));
     });
 
-    document.getElementById('export-csv-btn').addEventListener('click', () => {
+    on('export-csv-btn', 'click', () => {
       const headers = ['Name', 'Model', 'SKU', 'Category', 'Qty Per Carton', 'Unit', 'Warehouse Cartons', 'Shop Cartons', 'Unit Cost', 'Unit Price', 'Supplier', 'Min Reorder'];
       const rows = items.map(i => [
         i.name, i.model || '', i.sku, i.category || 'General', i.qtyPerCarton || 1, i.unit || 'pcs',
