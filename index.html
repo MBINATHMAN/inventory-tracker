@@ -672,7 +672,7 @@
         <div class="stock-info-box" id="transfer-info"></div>
         <form id="transfer-form">
           <input type="hidden" id="transfer-id">
-          <div class="form-row">
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
             <div class="form-group">
               <label>Transfer Direction</label>
               <select id="transfer-route">
@@ -681,8 +681,15 @@
               </select>
             </div>
             <div class="form-group">
-              <label>Quantity (Cartons)</label>
-              <input type="number" id="transfer-input-val" min="1" step="any" required>
+              <label>Unit</label>
+              <select id="transfer-unit-mode">
+                <option value="cartons">Cartons</option>
+                <option value="pcs">Pieces</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label id="transfer-qty-label">Quantity (Cartons)</label>
+              <input type="number" id="transfer-input-val" min="0.001" step="any" required>
             </div>
           </div>
           <div class="modal-actions">
@@ -700,7 +707,7 @@
         <div class="stock-info-box" id="dispatch-info"></div>
         <form id="dispatch-form">
           <input type="hidden" id="dispatch-id">
-          <div class="form-row">
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
             <div class="form-group">
               <label>Source Stock</label>
               <select id="dispatch-source">
@@ -709,13 +716,20 @@
               </select>
             </div>
             <div class="form-group">
+              <label>Unit</label>
+              <select id="dispatch-unit-mode">
+                <option value="cartons">Cartons</option>
+                <option value="pcs">Pieces</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label>Client Name</label>
               <input type="text" id="dispatch-client" required>
             </div>
           </div>
           <div class="form-group">
-            <label>Cartons Dispatched</label>
-            <input type="number" id="dispatch-input-val" min="1" step="any" required>
+            <label id="dispatch-qty-label">Cartons Dispatched</label>
+            <input type="number" id="dispatch-input-val" min="0.001" step="any" required>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -742,7 +756,7 @@
         <div class="stock-info-box" id="loss-info"></div>
         <form id="loss-form">
           <input type="hidden" id="loss-id">
-          <div class="form-row">
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
             <div class="form-group">
               <label>Source Location</label>
               <select id="loss-source">
@@ -751,8 +765,15 @@
               </select>
             </div>
             <div class="form-group">
-              <label>Cartons Lost</label>
-              <input type="number" id="loss-input-val" min="1" step="any" required>
+              <label>Unit</label>
+              <select id="loss-unit-mode">
+                <option value="cartons">Cartons</option>
+                <option value="pcs">Pieces</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label id="loss-qty-label">Cartons Lost</label>
+              <input type="number" id="loss-input-val" min="0.001" step="any" required>
             </div>
           </div>
           <div class="modal-actions">
@@ -1289,6 +1310,16 @@
         (it.model || '').toLowerCase().includes(tok)));
     }
 
+    // Convert an audit qty string ("24 pcs" / "5 Cartons") to cartons using the item's pack size
+    function logQtyToCartons(l) {
+      const qty = parseFloat(String(l.qty).replace(/[^\d.]/g, '')) || 0;
+      const word = (String(l.qty).match(/[a-zA-Z]+/) || [''])[0].toLowerCase();
+      if (!word || word.includes('carton') || word.includes('ctn') || word.includes('box')) return qty;
+      const it = items.find(i => String(i.id) === String(l.itemId)) || items.find(i => i.name === l.itemName);
+      return qty / (parseFloat(it && it.qtyPerCarton) || 1);
+    }
+    function unitWord(mode, item) { return mode === 'pcs' ? ((item && item.unit) || 'pcs') : 'Cartons'; }
+
     // Bigram similarity (0..1) — finds close matches for unknown words
     function aiSimilarity(a, b) {
       a = String(a); b = String(b);
@@ -1467,7 +1498,7 @@
         const byItem = {};
         let total = 0;
         logs.forEach(l => {
-          const qty = parseFloat(String(l.qty).replace(/[^\d.]/g, '')) || 0;
+          const qty = logQtyToCartons(l);
           total += qty;
           byItem[l.itemName] = (byItem[l.itemName] || 0) + qty;
         });
@@ -1571,7 +1602,7 @@
         const d = parseLogDate(l.date);
         if (!d || d.getTime() < cutoff) return;
         const w = Math.pow(0.5, ((now - d.getTime()) / 86400000) / HALF_LIFE_DAYS);
-        const qty = parseFloat(String(l.qty).replace(/[^\d.]/g, '')) || 0;
+        const qty = logQtyToCartons(l);
         const key = l.itemId || l.itemName;   // id-first: renames don't orphan history
         weighted[key] = (weighted[key] || 0) + qty * w;
         raw[key] = (raw[key] || 0) + qty;
@@ -1934,10 +1965,13 @@
         const item = items.find(i => String(i.id) === String(id));
         const cost = (ent.cost !== undefined && ent.cost !== '') ? (parseFloat(ent.cost) || 0)
           : (item ? (parseFloat(item.cost) || 0) : 0);
+        const qpc2 = item ? (parseFloat(item.qtyPerCarton) || 1) : 1;
+        const toCart = v => ent.unit === 'pcs' ? v / qpc2 : v;
+        const qtyC = toCart(qty);
         lines++;
-        ctns += qty;
-        damaged += Math.min(qty, parseFloat(ent.dmg) || 0);
-        value += qty * cost;
+        ctns += qtyC;
+        damaged += Math.min(qtyC, toCart(parseFloat(ent.dmg) || 0));
+        value += qtyC * cost;
       });
       const el = document.getElementById('rec-total');
       if (!lines) {
@@ -1950,11 +1984,11 @@
     on('bulk-receive-items', 'input', e => {
       const t = e.target;
       if (!t || !t.dataset) return updateRecTotal();
-      const attr = ['recQty', 'recDmg', 'recCost', 'recPrice'].find(a => t.dataset[a] !== undefined);
+      const attr = ['recQty', 'recDmg', 'recCost', 'recPrice', 'recUnit'].find(a => t.dataset[a] !== undefined);
       if (attr) {
         const id = t.dataset[attr];
         recEntries[id] = recEntries[id] || {};
-        recEntries[id][attr === 'recQty' ? 'qty' : attr === 'recDmg' ? 'dmg' : attr === 'recCost' ? 'cost' : 'price'] = t.value;
+        recEntries[id][attr === 'recQty' ? 'qty' : attr === 'recDmg' ? 'dmg' : attr === 'recCost' ? 'cost' : attr === 'recUnit' ? 'unit' : 'price'] = t.value;
       }
       updateRecTotal();
     });
@@ -1975,6 +2009,7 @@
         recEntries[id].dmg = g('dmg');
         recEntries[id].cost = g('cost');
         recEntries[id].price = g('price');
+        recEntries[id].unit = g('unit') || 'cartons';
       });
       const prevVals = recEntries;
 
@@ -2010,6 +2045,10 @@
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:flex-end;">
             <div class="rec-field"><span>Qty</span><input type="number" class="rec-input" data-rec-qty="${escapeHtml(it.id)}" placeholder="0" min="0" step="any" value="${pv.qty || ''}"></div>
+            <div class="rec-field"><span>Unit</span><select class="rec-input" data-rec-unit="${escapeHtml(it.id)}" style="width:88px; text-align:left; font-weight:500;">
+              <option value="cartons" ${(pv.unit || 'cartons') === 'cartons' ? 'selected' : ''}>Cartons</option>
+              <option value="pcs" ${pv.unit === 'pcs' ? 'selected' : ''}>Pieces</option>
+            </select></div>
             <div class="rec-field"><span>Damaged</span><input type="number" class="rec-input" data-rec-dmg="${escapeHtml(it.id)}" placeholder="0" min="0" step="any" value="${pv.dmg || ''}"></div>
             <div class="rec-field"><span>Unit cost</span><input type="number" class="rec-input rec-cost" data-rec-cost="${escapeHtml(it.id)}" min="0" step="0.01" value="${pv.cost !== undefined && pv.cost !== '' ? pv.cost : (parseFloat(it.cost) || 0)}"></div>
             <div class="rec-field"><span>Sell price</span><input type="number" class="rec-input rec-cost" data-rec-price="${escapeHtml(it.id)}" min="0" step="0.01" value="${pv.price !== undefined && pv.price !== '' ? pv.price : (parseFloat(it.price) || 0)}"></div>
@@ -2049,7 +2088,12 @@
         if (!recEntries[id]) return;   // row never touched
         const ent = recEntries[id];
         const qty = parseFloat(ent.qty) || 0;
-        const dmg = Math.min(qty, parseFloat(ent.dmg) || 0);
+        const unit = ent.unit || 'cartons';
+        const qpc = parseFloat(item.qtyPerCarton) || 1;
+        const qtyCart = unit === 'pcs' ? qty / qpc : qty;
+        const dmgCart = Math.min(qtyCart, unit === 'pcs' ? (parseFloat(ent.dmg) || 0) / qpc : (parseFloat(ent.dmg) || 0));
+        const qtyText = `${qty} ${unitWord(unit, item)}`;
+        const dmgText = `${parseFloat(ent.dmg) || 0} ${unitWord(unit, item)}`;
         const newCost = (ent.cost !== undefined && ent.cost !== '') ? (parseFloat(ent.cost) || 0) : (parseFloat(item.cost) || 0);
         const newPrice = (ent.price !== undefined && ent.price !== '') ? (parseFloat(ent.price) || 0) : (parseFloat(item.price) || 0);
         const prev = parseFloat(item[locKey]) || 0;
@@ -2063,15 +2107,15 @@
             `At receiving${recRefPart}`));
         }
 
-        if (qty > 0) {
+        if (qtyCart > 0) {
           qtyLines++;
-          const good = qty - dmg;
+          const good = qtyCart - dmgCart;
           jobs.push(
             db.ref('items/' + id + '/' + locKey).transaction(cur => Math.max(0, (parseFloat(cur) || 0) + good))
               .then(res => {
                 if (!res.committed) return false;
-                if (good > 0) pushLog(makeLog('RECEIVE', item.name, `${good} Cartons`, receiveRoute, { itemId: id, locKey, prev, newVal: prev + good }));
-                if (dmg > 0) pushLog(makeLog('DAMAGE_LOSS', item.name, `${dmg} Cartons`, damageRoute, { itemId: id, locKey, prev: prev + good, newVal: prev + good - dmg }));
+                if (good > 0) pushLog(makeLog('RECEIVE', item.name, qtyText, receiveRoute, { itemId: id, locKey, prev, newVal: prev + qtyCart }));
+                if (dmgCart > 0) pushLog(makeLog('DAMAGE_LOSS', item.name, dmgText, damageRoute, { itemId: id, locKey, prev: prev + qtyCart, newVal: prev + qtyCart - dmgCart }));
                 return true;
               })
           );
@@ -2143,11 +2187,15 @@
       openModal('transfer-modal');
     }
     on('transfer-route', 'change', updateTransferInfo);
+    on('transfer-unit-mode', 'change', updateTransferInfo);
 
     function updateTransferInfo() {
       const id = document.getElementById('transfer-id').value;
       const item = items.find(i => String(i.id) === String(id));
       if (!item) return;
+      const mode = document.getElementById('transfer-unit-mode').value;
+      document.getElementById('transfer-qty-label').textContent =
+        mode === 'pcs' ? `Quantity (Pieces)` : 'Quantity (Cartons)';
       document.getElementById('transfer-info').innerHTML =
         `Product: <strong>${escapeHtml(item.name)}</strong><br>Warehouse: ${item.whCartons || 0} ctns | Shop: ${item.shopCartons || 0} ctns`;
     }
@@ -2162,17 +2210,19 @@
 
       const fromKey = route === 'wh_to_shop' ? 'whCartons' : 'shopCartons';
       const toKey = route === 'wh_to_shop' ? 'shopCartons' : 'whCartons';
+      const tMode = document.getElementById('transfer-unit-mode').value;
+      const cartonsVal = tMode === 'pcs' ? val / (parseFloat(item.qtyPerCarton) || 1) : val;
 
       // Transaction guards against concurrent users over-drawing stock.
       db.ref('items/' + item.id).transaction(it => {
         if (!it) return it;
-        if ((parseFloat(it[fromKey]) || 0) < val) return; // abort
-        it[fromKey] = (parseFloat(it[fromKey]) || 0) - val;
-        it[toKey] = (parseFloat(it[toKey]) || 0) + val;
+        if ((parseFloat(it[fromKey]) || 0) < cartonsVal) return; // abort
+        it[fromKey] = (parseFloat(it[fromKey]) || 0) - cartonsVal;
+        it[toKey] = (parseFloat(it[toKey]) || 0) + cartonsVal;
         return it;
       }).then(res => {
         if (res.committed) {
-          pushLog(makeLog('TRANSFER', item.name, `${val} Cartons`,
+          pushLog(makeLog('TRANSFER', item.name, `${val} ${unitWord(tMode, item)}`,
             route === 'wh_to_shop' ? 'Warehouse ➔ Shop' : 'Shop ➔ Warehouse',
             { itemId: item.id, fromKey, toKey,
               fromPrev: parseFloat(item[fromKey]) || 0, fromNew: (parseFloat(item[fromKey]) || 0) - val,
@@ -2197,6 +2247,7 @@
       openModal('dispatch-modal');
     }
     on('dispatch-source', 'change', updateDispatchInfo);
+    on('dispatch-unit-mode', 'change', updateDispatchInfo);
 
     function updateDispatchInfo() {
       const id = document.getElementById('dispatch-id').value;
@@ -2204,8 +2255,12 @@
       if (!item) return;
       const src = document.getElementById('dispatch-source').value;
       const avail = src === 'warehouse' ? (item.whCartons || 0) : (item.shopCartons || 0);
+      const mode = document.getElementById('dispatch-unit-mode').value;
+      const qpc = parseFloat(item.qtyPerCarton) || 1;
+      document.getElementById('dispatch-qty-label').textContent =
+        mode === 'pcs' ? `Pieces (${item.unit || 'pcs'}) Dispatched` : 'Cartons Dispatched';
       document.getElementById('dispatch-info').innerHTML =
-        `Product: <strong>${escapeHtml(item.name)}</strong><br>Available at ${src.toUpperCase()}: ${avail} ctns`;
+        `Product: <strong>${escapeHtml(item.name)}</strong><br>Available at ${src.toUpperCase()}: ${avail} ctns (~${Math.round(avail * qpc)} ${item.unit || 'pcs'})`;
     }
 
     on('dispatch-form', 'submit', e => {
@@ -2228,14 +2283,17 @@
       const routeDetail = `${src.toUpperCase()} ➔ ${client}${refPart} · ${dateLabel}`;
 
       const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
+      const dMode = document.getElementById('dispatch-unit-mode').value;
+      const cartonsVal = dMode === 'pcs' ? val / (parseFloat(item.qtyPerCarton) || 1) : val;
+      const qtyText = `${val} ${unitWord(dMode, item)}`;
       db.ref('items/' + item.id + '/' + locKey).transaction(cur => {
         const c = parseFloat(cur) || 0;
-        if (c < val) return; // abort — insufficient
-        return c - val;
+        if (c < cartonsVal) return; // abort — insufficient
+        return c - cartonsVal;
       }).then(res => {
         if (res.committed) {
-          pushLog(makeLog('SUPPLY_CLIENT', item.name, `${val} Cartons`, routeDetail, { itemId: item.id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) - val }));
-          toast(`Dispatched ${val} cartons of ${item.name} to ${client}${ref ? ` (Ref: ${ref})` : ''}.`, 'success');
+          pushLog(makeLog('SUPPLY_CLIENT', item.name, qtyText, routeDetail, { itemId: item.id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) - cartonsVal }));
+          toast(`Dispatched ${qtyText} of ${item.name} to ${client}${ref ? ` (Ref: ${ref})` : ''}.`, 'success');
           closeModal('dispatch-modal');
         } else {
           toast('Insufficient stock at the selected source.', 'error');
@@ -2253,6 +2311,11 @@
       openModal('loss-modal');
     }
 
+    on('loss-unit-mode', 'change', () => {
+      const mode = document.getElementById('loss-unit-mode').value;
+      document.getElementById('loss-qty-label').textContent = mode === 'pcs' ? 'Pieces Lost' : 'Cartons Lost';
+    });
+
     on('loss-form', 'submit', e => {
       e.preventDefault();
       const id = document.getElementById('loss-id').value;
@@ -2262,19 +2325,21 @@
       if (!item || val <= 0) return;
 
       const locKey = src === 'warehouse' ? 'whCartons' : 'shopCartons';
+      const lMode = document.getElementById('loss-unit-mode').value;
+      const cartonsVal = lMode === 'pcs' ? val / (parseFloat(item.qtyPerCarton) || 1) : val;
       const avail = parseFloat(item[locKey]) || 0;
-      if (val > avail) {
+      if (cartonsVal > avail) {
         toast(`Only ${avail} cartons available — recorded loss cannot exceed stock.`, 'error');
         return;
       }
 
       db.ref('items/' + item.id + '/' + locKey).transaction(cur => {
         const c = parseFloat(cur) || 0;
-        if (c < val) return; // abort — raced by another user
-        return c - val;
+        if (c < cartonsVal) return; // abort — raced by another user
+        return c - cartonsVal;
       }).then(res => {
         if (res.committed) {
-          pushLog(makeLog('DAMAGE_LOSS', item.name, `${val} Cartons`, `${src.toUpperCase()} Shrinkage`, { itemId: item.id, locKey, prev: avail, newVal: avail - val }));
+          pushLog(makeLog('DAMAGE_LOSS', item.name, `${val} ${unitWord(lMode, item)}`, `${src.toUpperCase()} Shrinkage`, { itemId: item.id, locKey, prev: avail, newVal: avail - cartonsVal }));
           toast(`Recorded ${val} cartons loss for ${item.name}.`, 'success');
           closeModal('loss-modal');
         } else {
