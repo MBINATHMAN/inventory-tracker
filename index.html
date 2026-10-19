@@ -984,6 +984,7 @@
 
     let items = [];
     let auditLogs = [];
+    let recEntries = {};   // receive-screen typed values; survives search/filtering
     let sortCol = 'name';
     let sortDir = 'asc';
     const LEAD_TIME_DAYS = 14; // supplier lead time assumed by the forecast engine
@@ -1918,6 +1919,7 @@
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
       document.getElementById('rec-ref').value = '';
       document.getElementById('rec-date').value = new Date().toISOString().slice(0, 10);
+      recEntries = {};
       renderBulkReceiveItems();
     }
     on('receive-supplier-select', 'change', renderBulkReceiveItems);
@@ -1926,16 +1928,16 @@
     // Live shipment totals: cartons, cost value, damaged count
     function updateRecTotal() {
       let ctns = 0, value = 0, damaged = 0, lines = 0;
-      document.querySelectorAll('#bulk-receive-items [data-rec-qty]').forEach(inp => {
-        const id = inp.dataset.recQty;
-        const qty = parseFloat(inp.value) || 0;
+      Object.entries(recEntries).forEach(([id, ent]) => {
+        const qty = parseFloat(ent.qty) || 0;
         if (qty <= 0) return;
+        const item = items.find(i => String(i.id) === String(id));
+        const cost = (ent.cost !== undefined && ent.cost !== '') ? (parseFloat(ent.cost) || 0)
+          : (item ? (parseFloat(item.cost) || 0) : 0);
         lines++;
         ctns += qty;
-        const dmgInp = document.querySelector(`[data-rec-dmg="${CSS.escape(id)}"]`);
-        damaged += Math.min(qty, (parseFloat(dmgInp && dmgInp.value) || 0));
-        const costInp = document.querySelector(`[data-rec-cost="${CSS.escape(id)}"]`);
-        value += qty * (parseFloat(costInp && costInp.value) || 0);
+        damaged += Math.min(qty, parseFloat(ent.dmg) || 0);
+        value += qty * cost;
       });
       const el = document.getElementById('rec-total');
       if (!lines) {
@@ -1945,7 +1947,17 @@
       const dmgNote = damaged ? ` · <span style="color:var(--danger);">⛔ ${damaged} damaged (${ctns - damaged} good)</span>` : '';
       el.innerHTML = `<strong>${ctns} cartons</strong> · cost value <strong>KSh ${Math.round(value).toLocaleString()}</strong>${dmgNote}`;
     }
-    on('bulk-receive-items', 'input', updateRecTotal);
+    on('bulk-receive-items', 'input', e => {
+      const t = e.target;
+      if (!t || !t.dataset) return updateRecTotal();
+      const attr = ['recQty', 'recDmg', 'recCost', 'recPrice'].find(a => t.dataset[a] !== undefined);
+      if (attr) {
+        const id = t.dataset[attr];
+        recEntries[id] = recEntries[id] || {};
+        recEntries[id][attr === 'recQty' ? 'qty' : attr === 'recDmg' ? 'dmg' : attr === 'recCost' ? 'cost' : 'price'] = t.value;
+      }
+      updateRecTotal();
+    });
 
     function renderBulkReceiveItems() {
       const selectedSupplier = (document.getElementById('receive-supplier-select').value || '').trim().toLowerCase();
@@ -1953,13 +1965,18 @@
       document.getElementById('rec-new-item').style.display = 'none';
       document.getElementById('rec-add-item-btn').style.display = 'inline-block';
 
-      // Preserve anything already typed so searching / adding items never wipes it
-      const prevVals = {};
+      // Merge whatever is currently in the DOM into the persistent map, then render from the map.
+      // This is what keeps typed quantities alive when rows are filtered out by search.
       document.querySelectorAll('#bulk-receive-items [data-rec-qty]').forEach(inp => {
         const id = inp.dataset.recQty;
+        recEntries[id] = recEntries[id] || {};
         const g = sel => { const el = document.querySelector(`[data-rec-${sel}="${CSS.escape(id)}"]`); return el ? el.value : ''; };
-        prevVals[id] = { qty: inp.value, dmg: g('dmg'), cost: g('cost'), price: g('price') };
+        recEntries[id].qty = inp.value;
+        recEntries[id].dmg = g('dmg');
+        recEntries[id].cost = g('cost');
+        recEntries[id].price = g('price');
       });
+      const prevVals = recEntries;
 
       if (!selectedSupplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; updateRecTotal(); return; }
       const q = (document.getElementById('rec-search').value || '').trim().toLowerCase();
@@ -2029,15 +2046,12 @@
 
       items.filter(i => (i.supplier || '').trim().toLowerCase() === supplier.trim().toLowerCase()).forEach(item => {
         const id = String(item.id);
-        const qtyInp = document.querySelector(`[data-rec-qty="${CSS.escape(id)}"]`);
-        if (!qtyInp) return;
-        const qty = parseFloat(qtyInp.value) || 0;
-        const dmgInp = document.querySelector(`[data-rec-dmg="${CSS.escape(id)}"]`);
-        const dmg = Math.min(qty, (parseFloat(dmgInp && dmgInp.value) || 0));
-        const costInp = document.querySelector(`[data-rec-cost="${CSS.escape(id)}"]`);
-        const priceInp = document.querySelector(`[data-rec-price="${CSS.escape(id)}"]`);
-        const newCost = costInp ? (parseFloat(costInp.value) || 0) : (parseFloat(item.cost) || 0);
-        const newPrice = priceInp ? (parseFloat(priceInp.value) || 0) : (parseFloat(item.price) || 0);
+        if (!recEntries[id]) return;   // row never touched
+        const ent = recEntries[id];
+        const qty = parseFloat(ent.qty) || 0;
+        const dmg = Math.min(qty, parseFloat(ent.dmg) || 0);
+        const newCost = (ent.cost !== undefined && ent.cost !== '') ? (parseFloat(ent.cost) || 0) : (parseFloat(item.cost) || 0);
+        const newPrice = (ent.price !== undefined && ent.price !== '') ? (parseFloat(ent.price) || 0) : (parseFloat(item.price) || 0);
         const prev = parseFloat(item[locKey]) || 0;
 
         // Price/cost updates captured at the receiving desk
