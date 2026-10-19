@@ -2488,10 +2488,24 @@
 
     /* --------------------------- Item CRUD --------------------------- */
 
+    // SKU auto-generation: CAT-NAME-### while typing; stops once you edit SKU manually
+    let skuEdited = false;
+    function slugify(str, len) { return String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, len); }
+    function autoSKU() {
+      if (skuEdited) return;
+      const name = document.getElementById('f-name').value.trim();
+      const cat = document.getElementById('f-category').value.trim();
+      if (name && cat) {
+        document.getElementById('f-sku').value =
+          `${slugify(cat, 3)}-${slugify(name, 3)}-${Math.floor(100 + Math.random() * 900)}`;
+      }
+    }
+
     function openItemModal(id) {
       document.getElementById('item-form').reset();
       document.getElementById('edit-id').value = id || '';
       document.getElementById('modal-title').textContent = id ? 'Edit item' : 'Add single item';
+      skuEdited = !!id;   // editing an existing item: never touch its SKU
       if (id) {
         const it = items.find(i => String(i.id) === String(id));
         if (it) {
@@ -2543,6 +2557,10 @@
         })
         .catch(err => toast('Save failed: ' + err.message, 'error'));
     });
+
+    on('f-name', 'input', autoSKU);
+    on('f-category', 'input', autoSKU);
+    on('f-sku', 'input', () => { skuEdited = true; });
 
     function deleteItem(id) {
       const item = items.find(i => String(i.id) === String(id));
