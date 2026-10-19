@@ -858,6 +858,17 @@
             <input type="radio" name="backup-mode" value="replace"> Replace <span style="color:var(--danger);">(overwrite everything)</span>
           </label>
         </div>
+        <div style="border:none; border-top:1px solid var(--border-divider); margin:14px 0;"></div>
+        <div class="form-group">
+          <label>Recover audit history from a CSV export</label>
+          <input type="file" id="audit-csv-input" accept=".csv"
+                 style="padding:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); width:100%; box-sizing:border-box; font-size:14px;">
+          <p style="font-size:12px; color:var(--text-tertiary); margin:6px 0 0;">Accepts files exported from the audit log (Export CSV). Safe to re-import — duplicates are skipped automatically.</p>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <button class="btn btn-sm" id="diag-btn">🔧 Test audit write</button>
+          <span style="font-size:12px; color:var(--text-tertiary); margin-left:8px;">Confirms new movements are being recorded</span>
+        </div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" data-close="backup-modal">Close</button>
         </div>
@@ -2558,6 +2569,80 @@
         }
       };
       reader.readAsText(file);
+    });
+
+    // ---- Recover audit history from an audit-log CSV export ----
+    document.getElementById('audit-csv-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const rows = parseCsv(String(reader.result));
+        if (rows.length < 2) { toast('That CSV appears empty.', 'error'); return; }
+        const hdr = rows[0].map(x => String(x).trim().toLowerCase());
+        const ix = {
+          date: hdr.findIndex(x => /date/.test(x)),
+          action: hdr.findIndex(x => /action/.test(x)),
+          item: hdr.findIndex(x => /item/.test(x)),
+          qty: hdr.findIndex(x => /qty|quantity/.test(x)),
+          route: hdr.findIndex(x => /route|detail/.test(x))
+        };
+        if (ix.date < 0 || ix.action < 0 || ix.item < 0) {
+          toast('CSV needs at least Date, Action, Item columns.', 'error');
+          return;
+        }
+        // Normalize any common date format to DD/MM/YYYY
+        const normDate = s => {
+          s = String(s || '').trim();
+          let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+          if (m) return `${+m[3]}/${+m[2]}/${m[1]}`;
+          m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+          if (m) return `${+m[1]}/${+m[2]}/${m[3]}`;
+          return s;
+        };
+        const updates = {};
+        let n = 0;
+        rows.slice(1).forEach((r, i) => {
+          const g = k => ix[k] >= 0 ? String(r[ix[k]] ?? '').trim() : '';
+          if (!g('action') || !g('item')) return;
+          // Deterministic id from row content -> re-imports never duplicate
+          const line = [g('date'), g('action'), g('item'), g('qty'), g('route')].join('|');
+          let hsh = 5381;
+          for (let c = 0; c < line.length; c++) hsh = ((hsh * 33) ^ line.charCodeAt(c)) >>> 0;
+          const id = 'csv_' + hsh.toString(36) + '_' + i;
+          updates['/auditLogs/' + id] = {
+            id,
+            date: normDate(g('date')) || new Date().toLocaleDateString('en-GB'),
+            action: g('action'),
+            itemName: g('item'),
+            qty: g('qty') || '-',
+            route: g('route') || 'Recovered from CSV'
+          };
+          n++;
+        });
+        if (!n) { toast('No valid rows found in that CSV.', 'error'); return; }
+        db.ref().update(updates)
+          .then(() => toast(`Recovered ${n} audit entr${n === 1 ? 'y' : 'ies'} from CSV.`, 'success'))
+          .catch(err => toast('Recovery failed: ' + err.message, 'error'));
+      };
+      reader.readAsText(file);
+    });
+
+    // ---- Write-path diagnostics: proves new movements can be recorded ----
+    document.getElementById('diag-btn').addEventListener('click', () => {
+      const testId = 'selftest_' + Date.now();
+      db.ref('auditLogs/' + testId).set({
+        id: testId,
+        date: new Date().toLocaleDateString('en-GB'),
+        action: 'SELF_TEST',
+        itemName: 'Diagnostics',
+        qty: '-',
+        route: 'Write-path test'
+      }).then(() => {
+        toast('✅ Audit write succeeded — tracking is working.', 'success');
+        db.ref('auditLogs/' + testId).remove();
+      }).catch(err => toast('❌ Audit write FAILED: ' + err.message, 'error'));
     });
 
     document.getElementById('export-csv-btn').addEventListener('click', () => {
