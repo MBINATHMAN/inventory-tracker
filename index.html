@@ -629,6 +629,8 @@
             <input type="date" id="rec-date">
           </div>
         </div>
+        <input type="text" id="rec-search" placeholder="🔍 Search product name, SKU or model…"
+               style="width:100%; padding:8px 12px; margin-bottom:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px; box-sizing:border-box; outline:none;">
         <div class="order-list" id="bulk-receive-items"></div>
         <div id="rec-total" style="padding:10px 12px; border:1px dashed var(--border); border-radius:8px; font-size:13px; margin-bottom:8px;">
           <span style="color:var(--text-tertiary);">Enter quantities to see shipment totals…</span>
@@ -640,8 +642,12 @@
             <div class="form-group"><label>SKU *</label><input type="text" id="rn-sku"></div>
           </div>
           <div class="form-row">
+            <div class="form-group"><label>Supplier *</label><input type="text" id="rn-supplier"></div>
             <div class="form-group"><label>Category</label><input type="text" id="rn-category" placeholder="General"></div>
+          </div>
+          <div class="form-row">
             <div class="form-group"><label>Qty per carton</label><input type="number" id="rn-qtyPerCarton" value="1" min="1"></div>
+            <div class="form-group"><label>Unit label</label><input type="text" id="rn-unit" value="pcs"></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label>Unit cost (KSh)</label><input type="number" id="rn-cost" step="0.01" min="0" value="0"></div>
@@ -1915,6 +1921,7 @@
       renderBulkReceiveItems();
     }
     on('receive-supplier-select', 'change', renderBulkReceiveItems);
+    on('rec-search', 'input', renderBulkReceiveItems);
 
     // Live shipment totals: cartons, cost value, damaged count
     function updateRecTotal() {
@@ -1944,24 +1951,58 @@
       const selectedSupplier = (document.getElementById('receive-supplier-select').value || '').trim().toLowerCase();
       const container = document.getElementById('bulk-receive-items');
       document.getElementById('rec-new-item').style.display = 'none';
-      document.getElementById('rec-add-item-btn').style.display = selectedSupplier ? 'inline-block' : 'none';
+      document.getElementById('rec-add-item-btn').style.display = 'inline-block';
+
+      // Preserve anything already typed so searching / adding items never wipes it
+      const prevVals = {};
+      document.querySelectorAll('#bulk-receive-items [data-rec-qty]').forEach(inp => {
+        const id = inp.dataset.recQty;
+        const g = sel => { const el = document.querySelector(`[data-rec-${sel}="${CSS.escape(id)}"]`); return el ? el.value : ''; };
+        prevVals[id] = { qty: inp.value, dmg: g('dmg'), cost: g('cost'), price: g('price') };
+      });
+
       if (!selectedSupplier) { container.innerHTML = '<p style="padding:20px; text-align:center;">Select a supplier.</p>'; updateRecTotal(); return; }
-      const list = items.filter(i => (i.supplier || '').trim().toLowerCase() === selectedSupplier)
-                        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-      if (!list.length) { container.innerHTML = '<p style="padding:20px; text-align:center;">No items from this supplier yet — add one below.</p>'; updateRecTotal(); return; }
-      container.innerHTML = list.map(it => `
+      const q = (document.getElementById('rec-search').value || '').trim().toLowerCase();
+      let list = items.filter(i => (i.supplier || '').trim().toLowerCase() === selectedSupplier);
+      if (q) {
+        list = list.filter(i =>
+          (i.name || '').toLowerCase().includes(q) ||
+          (i.sku || '').toLowerCase().includes(q) ||
+          (i.model || '').toLowerCase().includes(q));
+      }
+
+      // Group by category; categories and items each sorted A–Z
+      const groups = {};
+      list.forEach(i => { const c = i.category || 'General'; (groups[c] = groups[c] || []).push(i); });
+      const cats = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+
+      if (!list.length) {
+        container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">' +
+          (q ? 'No products match your search.' : 'No items from this supplier yet — add one below.') + '</p>';
+        updateRecTotal();
+        return;
+      }
+
+      const line = it => {
+        const pv = prevVals[it.id] || {};
+        return `
         <div class="order-item" style="flex-wrap:wrap; row-gap:6px;" data-row="${escapeHtml(it.id)}">
           <div class="order-item-info" style="min-width:150px;">
             <div class="order-item-name">${escapeHtml(it.name)}</div>
             <div class="order-item-meta">WH ${it.whCartons || 0} | Shop ${it.shopCartons || 0} · cost KSh ${(parseFloat(it.cost) || 0).toFixed(2)}</div>
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:flex-end;">
-            <div class="rec-field"><span>Qty</span><input type="number" class="rec-input" data-rec-qty="${escapeHtml(it.id)}" placeholder="0" min="0" step="any"></div>
-            <div class="rec-field"><span>Damaged</span><input type="number" class="rec-input" data-rec-dmg="${escapeHtml(it.id)}" placeholder="0" min="0" step="any"></div>
-            <div class="rec-field"><span>Unit cost</span><input type="number" class="rec-input rec-cost" data-rec-cost="${escapeHtml(it.id)}" value="${parseFloat(it.cost) || 0}" min="0" step="0.01"></div>
-            <div class="rec-field"><span>Sell price</span><input type="number" class="rec-input rec-cost" data-rec-price="${escapeHtml(it.id)}" value="${parseFloat(it.price) || 0}" min="0" step="0.01"></div>
+            <div class="rec-field"><span>Qty</span><input type="number" class="rec-input" data-rec-qty="${escapeHtml(it.id)}" placeholder="0" min="0" step="any" value="${pv.qty || ''}"></div>
+            <div class="rec-field"><span>Damaged</span><input type="number" class="rec-input" data-rec-dmg="${escapeHtml(it.id)}" placeholder="0" min="0" step="any" value="${pv.dmg || ''}"></div>
+            <div class="rec-field"><span>Unit cost</span><input type="number" class="rec-input rec-cost" data-rec-cost="${escapeHtml(it.id)}" min="0" step="0.01" value="${pv.cost !== undefined && pv.cost !== '' ? pv.cost : (parseFloat(it.cost) || 0)}"></div>
+            <div class="rec-field"><span>Sell price</span><input type="number" class="rec-input rec-cost" data-rec-price="${escapeHtml(it.id)}" min="0" step="0.01" value="${pv.price !== undefined && pv.price !== '' ? pv.price : (parseFloat(it.price) || 0)}"></div>
           </div>
-        </div>
+        </div>`;
+      };
+
+      container.innerHTML = cats.map(cat => `
+        <div style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:1px solid var(--border-divider);">${escapeHtml(cat)} <span style="font-weight:400;">(${groups[cat].length})</span></div>
+        ${groups[cat].sort((a, b) => String(a.name).localeCompare(String(b.name))).map(line).join('')}
       `).join('');
       updateRecTotal();
     }
@@ -2038,16 +2079,23 @@
       const f = document.getElementById('rec-new-item');
       const show = f.style.display === 'none';
       f.style.display = show ? 'block' : 'none';
-      if (show) document.getElementById('rn-name').focus();
+      if (show) {
+        // Pre-fill supplier from the receive screen, but it stays editable
+        const sel = document.getElementById('receive-supplier-select').value;
+        if (sel && !document.getElementById('rn-supplier').value) {
+          document.getElementById('rn-supplier').value = sel;
+        }
+        document.getElementById('rn-name').focus();
+      }
     });
     on('rn-cancel', 'click', () => {
       document.getElementById('rec-new-item').style.display = 'none';
     });
     on('rn-save', 'click', () => {
-      const supplier = document.getElementById('receive-supplier-select').value;
+      const supplier = document.getElementById('rn-supplier').value.trim();
       const name = document.getElementById('rn-name').value.trim();
       const sku = document.getElementById('rn-sku').value.trim();
-      if (!supplier) { toast('Select a supplier first.', 'error'); return; }
+      if (!supplier) { toast('Supplier is required.', 'error'); return; }
       if (!name || !sku) { toast('Item name and SKU are required.', 'error'); return; }
       const clash = items.find(i => String(i.sku).toLowerCase() === sku.toLowerCase());
       if (clash) { toast(`SKU "${sku}" already belongs to "${clash.name}".`, 'error'); return; }
@@ -2057,7 +2105,7 @@
         model: '',
         category: document.getElementById('rn-category').value.trim() || 'General',
         qtyPerCarton: Math.max(1, parseInt(document.getElementById('rn-qtyPerCarton').value) || 1),
-        unit: 'pcs',
+        unit: document.getElementById('rn-unit').value.trim() || 'pcs',
         cost: Math.max(0, parseFloat(document.getElementById('rn-cost').value) || 0),
         price: Math.max(0, parseFloat(document.getElementById('rn-price').value) || 0),
         supplier,
@@ -2065,10 +2113,10 @@
         whCartons: 0,
         shopCartons: 0
       }).then(() => {
-        toast(`"${name}" added under ${supplier} — now enter its receiving quantity.`, 'success');
-        ['rn-name', 'rn-sku', 'rn-category'].forEach(x => { document.getElementById(x).value = ''; });
+        toast(`"${name}" added under ${supplier}.`, 'success');
+        ['rn-name', 'rn-sku', 'rn-category', 'rn-cost', 'rn-price'].forEach(x => { document.getElementById(x).value = ''; });
         document.getElementById('rec-new-item').style.display = 'none';
-        renderBulkReceiveItems();
+        renderBulkReceiveItems();  // typed quantities preserved; new item appears if supplier matches
       });
     });
 
