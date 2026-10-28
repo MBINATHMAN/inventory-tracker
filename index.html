@@ -2164,18 +2164,40 @@
         if (sel && !document.getElementById('rn-supplier').value) {
           document.getElementById('rn-supplier').value = sel;
         }
+        rnSkuEdited = false;
         document.getElementById('rn-name').focus();
       }
     });
     on('rn-cancel', 'click', () => {
       document.getElementById('rec-new-item').style.display = 'none';
     });
+    // Auto-SKU inside the Receive screen's "new item" form too
+    let rnSkuEdited = false;
+    function autoSKUReceive() {
+      if (rnSkuEdited) return;
+      const name = document.getElementById('rn-name').value.trim();
+      if (!name) return;
+      const catEl = document.getElementById('rn-category');
+      if (!catEl.value.trim()) {
+        const predicted = predictCategory(name);
+        if (predicted) catEl.value = predicted;
+      }
+      const cat = catEl.value.trim();
+      document.getElementById('rn-sku').value =
+        `${slugify(cat || 'GEN', 3)}-${slugify(name, 3)}-${Math.floor(100 + Math.random() * 900)}`;
+    }
+    on('rn-name', 'input', autoSKUReceive);
+    on('rn-category', 'input', autoSKUReceive);
+    on('rn-sku', 'input', () => { rnSkuEdited = true; });
+
     on('rn-save', 'click', () => {
       const supplier = document.getElementById('rn-supplier').value.trim();
       const name = document.getElementById('rn-name').value.trim();
-      const sku = document.getElementById('rn-sku').value.trim();
+      let sku = document.getElementById('rn-sku').value.trim();
       if (!supplier) { toast('Supplier is required.', 'error'); return; }
-      if (!name || !sku) { toast('Item name and SKU are required.', 'error'); return; }
+      if (!name) { toast('Item name is required.', 'error'); return; }
+      if (!sku) { autoSKUReceive(); sku = document.getElementById('rn-sku').value.trim(); }
+      if (!sku) { toast('Type a SKU manually.', 'error'); return; }
       const clash = items.find(i => String(i.sku).toLowerCase() === sku.toLowerCase());
       if (clash) { toast(`SKU "${sku}" already belongs to "${clash.name}".`, 'error'); return; }
       const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
@@ -2194,6 +2216,7 @@
       }).then(() => {
         toast(`"${name}" added under ${supplier}.`, 'success');
         ['rn-name', 'rn-sku', 'rn-category', 'rn-cost', 'rn-price'].forEach(x => { document.getElementById(x).value = ''; });
+        rnSkuEdited = false;
         document.getElementById('rec-new-item').style.display = 'none';
         renderBulkReceiveItems();  // typed quantities preserved; new item appears if supplier matches
       });
