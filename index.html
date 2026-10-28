@@ -3,6 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Inventory">
+  <link rel="manifest" href='data:application/manifest+json,{manifest}'>
+  <link rel="icon" type="image/png" href="data:image/png;base64,{icons[192]}">
+  <link rel="apple-touch-icon" href="data:image/png;base64,{icons[192]}">
   <title>Inventory Stock & Operations Tracker</title>
   <style>
     :root {
@@ -929,7 +937,7 @@
             <div class="form-group"><label>Unit Price (KSh)</label><input type="number" id="f-price" step="0.01" min="0" required></div>
           </div>
           <div class="form-row">
-            <div class="form-group"><label>Supplier</label><input type="text" id="f-supplier"></div>
+            <div class="form-group"><label>Supplier</label><input type="text" id="f-supplier" list="supplier-list" placeholder="Pick existing or type a new one…"><datalist id="supplier-list"></datalist></div>
             <div class="form-group"><label>Min Reorder Level (ctns)</label><input type="number" id="f-min" min="0" value="2"></div>
           </div>
           <div class="modal-actions">
@@ -1017,6 +1025,18 @@
         ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
     }
 
+    // Canonical supplier list: trimmed, case-insensitively deduped (first spelling wins)
+    function getSuppliers() {
+      const map = {};
+      items.forEach(i => {
+        const raw = String(i.supplier || '').trim();
+        if (!raw) return;
+        const key = raw.toLowerCase();
+        if (!map[key]) map[key] = raw;
+      });
+      return Object.values(map).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }
+
     function toast(msg, type = 'info') {
       const el = document.createElement('div');
       el.className = 'toast ' + type;
@@ -1101,6 +1121,7 @@
       const data = snapshot.val();
       items = data ? Object.values(data) : [];
       render();
+      updateSupplierList();
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
@@ -1671,7 +1692,7 @@
     /* --------------------------- Price List --------------------------- */
 
     function openPricelist() {
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      const suppliers = getSuppliers();
       const categories = [...new Set(items.map(i => i.category).filter(Boolean))].sort();
 
       document.getElementById('pl-supplier').innerHTML =
@@ -1826,7 +1847,7 @@
 
     function renderSupplierManager() {
       const list = document.getElementById('supplier-manager-list');
-      const suppliers = [...new Set(items.map(i => i.supplier).filter(Boolean))].sort();
+      const suppliers = getSuppliers();
       if (!suppliers.length) {
         list.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">No suppliers yet — add one to an item first.</p>';
         return;
@@ -1943,8 +1964,7 @@
     /* --------------------------- Bulk Receive --------------------------- */
 
     function initBulkReceive() {
-      const rawSuppliers = items.map(i => (i.supplier || '').trim()).filter(Boolean);
-      const suppliers = [...new Set(rawSuppliers)].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      const suppliers = getSuppliers();
       document.getElementById('receive-supplier-select').innerHTML =
         '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -2402,24 +2422,49 @@
       const item = items.find(i => String(i.id) === String(log.itemId));
       if (!item) { toast('This item no longer exists.', 'error'); return; }
 
+      const round3 = v => Math.round(v * 1000) / 1000;
       const ops = (log.action === 'TRANSFER')
         ? [{ key: log.fromKey, delta: log.fromPrev - log.fromNew },
            { key: log.toKey, delta: log.toPrev - log.toNew }]
         : [{ key: log.locKey, delta: log.prev - log.newVal }];
 
-      // Pre-check against current values so we never half-apply a reversal
-      for (const op of ops) {
-        if ((parseFloat(item[op.key]) || 0) + op.delta < 0) {
-          toast('Cannot undo: later movements already consumed this stock.', 'error');
-          return;
+      let partialNote = '';
+      if (log.action === 'TRANSFER') {
+        // Transfers move stock between two locations — a partial reversal can't be represented cleanly.
+        for (const op of ops) {
+          if ((parseFloat(item[op.key]) || 0) + op.delta < 0) {
+            toast('Cannot undo: later movements already consumed this stock.', 'error');
+            return;
+          }
+        }
+      } else {
+        const op = ops[0];
+        const cur = parseFloat(item[op.key]) || 0;
+        if (op.delta < 0 && cur + op.delta < 0) {
+          // Undoing would remove more than what remains — offer to reverse what's actually left.
+          const removable = cur;
+          const wanted = Math.abs(op.delta);
+          if (removable <= 0) {
+            toast('None of this stock remains — it was already sold or moved. Nothing to undo.', 'error');
+            return;
+          }
+          const ok = confirm(`Only ${round3(removable)} of ${round3(wanted)} ctns from this movement are still in stock — ` +
+            `the rest (${round3(wanted - removable)}) was already sold or moved later.
+
+` +
+            `Undo the remaining ${round3(removable)} ctns anyway? The entry will be marked as partially reversed.`);
+          if (!ok) return;
+          partialNote = ` · PARTIAL: reversed ${round3(removable)} of ${round3(wanted)} ctns (${round3(wanted - removable)} had already been consumed)`;
+          op.delta = -removable;
         }
       }
 
       Promise.all(ops.map(op =>
         db.ref('items/' + log.itemId + '/' + op.key).transaction(cur => (parseFloat(cur) || 0) + op.delta)
       )).then(() => {
-        pushLog(makeLog('UNDO', log.itemName, log.qty, `Reversed ${log.action} from ${log.date} · ${log.route}`));
-        toast('Movement reversed.', 'success');
+        pushLog(makeLog('UNDO', log.itemName, log.qty,
+          `Reversed ${log.action} from ${log.date} · ${log.route}${partialNote}`));
+        toast(partialNote ? 'Movement partially reversed — see the audit log.' : 'Movement reversed.', 'success');
         renderAuditLog();
       });
     }
@@ -2502,7 +2547,7 @@
     /* --------------------------- Purchase Order --------------------------- */
 
     function initOrderModal() {
-      const suppliers = [...new Set(items.map(i => (i.supplier || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      const suppliers = getSuppliers();
       document.getElementById('order-supplier').innerHTML =
         '<option value="">-- Choose Supplier --</option>' +
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
@@ -2580,8 +2625,15 @@
       }
     }
 
+    function updateSupplierList() {
+      const dl = document.getElementById('supplier-list');
+      if (!dl) return;
+      dl.innerHTML = getSuppliers().map(s => `<option value="${escapeHtml(s)}">`).join('');
+    }
+
     function openItemModal(id) {
       document.getElementById('item-form').reset();
+      updateSupplierList();
       document.getElementById('edit-id').value = id || '';
       document.getElementById('modal-title').textContent = id ? 'Edit item' : 'Add single item';
       skuEdited = !!id;   // editing an existing item: never touch its SKU
