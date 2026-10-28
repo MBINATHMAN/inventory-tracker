@@ -926,7 +926,7 @@
           </div>
           <div class="form-row">
             <div class="form-group"><label>SKU</label><input type="text" id="f-sku" required></div>
-            <div class="form-group"><label>Category</label><input type="text" id="f-category" required></div>
+            <div class="form-group"><label>Category</label><input type="text" id="f-category" list="cat-list" required placeholder="Pick existing or type new…"><datalist id="cat-list"></datalist></div>
           </div>
           <div class="form-row">
             <div class="form-group"><label>Qty per carton</label><input type="number" id="f-qtyPerCarton" min="1" value="1"></div>
@@ -1122,6 +1122,7 @@
       items = data ? Object.values(data) : [];
       render();
       updateSupplierList();
+      updateCatList();
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
@@ -2615,14 +2616,36 @@
     // SKU auto-generation: CAT-NAME-### while typing; stops once you edit SKU manually
     let skuEdited = false;
     function slugify(str, len) { return String(str || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, len); }
+    // Lightweight category prediction from product name (like the version you liked)
+    const CAT_HINTS = {
+      'Electronics': ['led', 'tv', 'cable', 'charger', 'speaker', 'phone', 'battery', 'adapter', 'extension', 'bulb'],
+      'Kitchen & Utensils': ['kettle', 'cooker', 'pan', 'pot', 'plate', 'cup', 'mug', 'spoon', 'fork', 'flask', 'tray', 'bowl'],
+      'Cleaning': ['mop', 'broom', 'detergent', 'soap', 'bleach', 'sponge', 'bucket', 'wiper'],
+      'Hardware': ['shock', 'valve', 'pump', 'drill', 'hammer', 'tube', 'arm', 'bolt', 'wrench', 'saw'],
+      'Stationery': ['pen', 'paper', 'book', 'marker', 'stapler', 'file', 'notebook', 'envelope'],
+      'Textiles': ['towel', 'sheet', 'blanket', 'curtain', 'cloth', 'diaper']
+    };
+    function predictCategory(name) {
+      const lower = String(name).toLowerCase();
+      for (const [cat, words] of Object.entries(CAT_HINTS)) {
+        if (words.some(w => lower.includes(w))) return cat;
+      }
+      return '';
+    }
+
     function autoSKU() {
       if (skuEdited) return;
       const name = document.getElementById('f-name').value.trim();
-      const cat = document.getElementById('f-category').value.trim();
-      if (name && cat) {
-        document.getElementById('f-sku').value =
-          `${slugify(cat, 3)}-${slugify(name, 3)}-${Math.floor(100 + Math.random() * 900)}`;
+      if (!name) return;
+      const catEl = document.getElementById('f-category');
+      // Suggest a category only if the user hasn't typed one
+      if (!catEl.value.trim()) {
+        const predicted = predictCategory(name);
+        if (predicted) catEl.value = predicted;
       }
+      const cat = catEl.value.trim();
+      document.getElementById('f-sku').value =
+        `${slugify(cat || 'GEN', 3)}-${slugify(name, 3)}-${Math.floor(100 + Math.random() * 900)}`;
     }
 
     function updateSupplierList() {
@@ -2631,9 +2654,17 @@
       dl.innerHTML = getSuppliers().map(s => `<option value="${escapeHtml(s)}">`).join('');
     }
 
+    function updateCatList() {
+      const dl = document.getElementById('cat-list');
+      if (!dl) return;
+      const cats = [...new Set(items.map(i => String(i.category || '').trim()).filter(Boolean))].sort();
+      dl.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+    }
+
     function openItemModal(id) {
       document.getElementById('item-form').reset();
       updateSupplierList();
+      updateCatList();
       document.getElementById('edit-id').value = id || '';
       document.getElementById('modal-title').textContent = id ? 'Edit item' : 'Add single item';
       skuEdited = !!id;   // editing an existing item: never touch its SKU
