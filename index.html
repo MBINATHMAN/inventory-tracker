@@ -732,7 +732,7 @@
             </div>
             <div class="form-group">
               <label>Client Name</label>
-              <input type="text" id="dispatch-client" required>
+              <input type="text" id="dispatch-client" list="client-list" required placeholder="Pick existing or type new…"><datalist id="client-list"></datalist>
             </div>
           </div>
           <div class="form-group">
@@ -1128,6 +1128,7 @@
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).sort((a, b) => String(b.id).localeCompare(String(a.id))) : [];
+      updateClientList();
       if (document.getElementById('audit-modal').classList.contains('open')) renderAuditLog();
     });
 
@@ -2282,6 +2283,7 @@
     /* --------------------------- Dispatch --------------------------- */
 
     function openDispatchModal(id) {
+      updateClientList();
       document.getElementById('dispatch-id').value = id;
       document.getElementById('dispatch-input-val').value = '';
       document.getElementById('dispatch-client').value = '';
@@ -2336,7 +2338,7 @@
         return c - cartonsVal;
       }).then(res => {
         if (res.committed) {
-          pushLog(makeLog('SUPPLY_CLIENT', item.name, qtyText, routeDetail, { itemId: item.id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) - cartonsVal }));
+          pushLog(makeLog('SUPPLY_CLIENT', item.name, qtyText, routeDetail, { itemId: item.id, locKey, prev: parseFloat(item[locKey]) || 0, newVal: (parseFloat(item[locKey]) || 0) - cartonsVal, clientName: client }));
           toast(`Dispatched ${qtyText} of ${item.name} to ${client}${ref ? ` (Ref: ${ref})` : ''}.`, 'success');
           closeModal('dispatch-modal');
         } else {
@@ -2675,6 +2677,30 @@
       const dl = document.getElementById('supplier-list');
       if (!dl) return;
       dl.innerHTML = getSuppliers().map(s => `<option value="${escapeHtml(s)}">`).join('');
+    }
+
+    // Pull the client name out of a dispatch log's route (new logs store it explicitly)
+    function extractClientName(l) {
+      if (l.clientName) return String(l.clientName).trim();
+      const r = String(l.route || '');
+      const paren = r.match(/Client\s*\((.+?)\)/);   // older format: arrow + "Client (Mary)"
+      if (paren) return paren[1].trim();
+      const m = r.match(/[\u2794\u27a6\u27a1\u279c\u2192]\s*(.+?)(?:\s*\u00b7|\s*\(|$)/);
+      return m ? m[1].trim() : '';
+    }
+
+    // Suggest every client ever supplied (from the full audit history), case-insensitively deduped
+    function updateClientList() {
+      const dl = document.getElementById('client-list');
+      if (!dl) return;
+      const map = {};
+      auditLogs.forEach(l => {
+        if (l.action !== 'SUPPLY_CLIENT') return;
+        const name = extractClientName(l);
+        if (name && !map[name.toLowerCase()]) map[name.toLowerCase()] = name;
+      });
+      dl.innerHTML = Object.values(map).sort((a, b) => a.localeCompare(b))
+        .map(c => `<option value="${escapeHtml(c)}">`).join('');
     }
 
     function updateCatList() {
