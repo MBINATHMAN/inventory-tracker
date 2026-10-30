@@ -1972,7 +1972,11 @@
         suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
       document.getElementById('rec-ref').value = '';
       document.getElementById('rec-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('rec-search').value = '';
       recEntries = {};
+      // Clear the previous session from the DOM FIRST, so the render-time seed
+      // can't resurrect the old quantities/search state.
+      document.getElementById('bulk-receive-items').innerHTML = '';
       renderBulkReceiveItems();
     }
     on('receive-supplier-select', 'change', renderBulkReceiveItems);
