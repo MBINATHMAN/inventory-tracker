@@ -731,7 +731,7 @@
               </select>
             </div>
             <div class="form-group">
-              <label>Client Name</label>
+              <label>Client Name <button type="button" class="btn btn-sm" id="manage-clients-btn" style="float:right; padding:1px 8px; font-size:10px;">Manage</button></label>
               <input type="text" id="dispatch-client" list="client-list" required placeholder="Pick existing or type new…"><datalist id="client-list"></datalist>
             </div>
           </div>
@@ -914,6 +914,18 @@
       </div>
     </div>
 
+    <!-- Client Manager Modal -->
+    <div class="modal-overlay" id="client-modal">
+      <div class="modal" style="max-width: 560px;">
+        <h2>👥 Manage Clients</h2>
+        <p style="font-size:12px; color:var(--text-tertiary); margin-top:-8px; margin-bottom:14px;">Clients come from your sales history. Hiding removes a name from the suggestions — your sales records are never touched.</p>
+        <div class="order-list" id="client-manager-list" style="max-height:330px;"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+          <button type="button" class="btn" data-close="client-modal">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Add/Edit Item Modal -->
     <div class="modal-overlay" id="item-modal">
       <div class="modal">
@@ -1014,6 +1026,7 @@
     let items = [];
     let auditLogs = [];
     let recEntries = {};   // receive-screen typed values; survives search/filtering
+    let hiddenClients = []; // client names hidden from dispatch suggestions
     let sortCol = 'name';
     let sortDir = 'asc';
     const LEAD_TIME_DAYS = 14; // supplier lead time assumed by the forecast engine
@@ -1140,6 +1153,8 @@
       const d = snap.val() || {};
       aiMemory.aliases = d.aliases || {};
       aiMemory.prefs = Object.assign({ leadTime: LEAD_TIME_DAYS }, d.prefs);
+      hiddenClients = (aiMemory.prefs.hiddenClients) || [];
+      updateClientList();
     });
 
     /* --------------------------- Modal open/close --------------------------- */
@@ -2704,8 +2719,58 @@
         if (name && !map[name.toLowerCase()]) map[name.toLowerCase()] = name;
       });
       dl.innerHTML = Object.values(map).sort((a, b) => a.localeCompare(b))
+        .filter(c => !hiddenClients.includes(c.toLowerCase()))
         .map(c => `<option value="${escapeHtml(c)}">`).join('');
     }
+
+    function getClients() {
+      const map = {};
+      auditLogs.forEach(l => {
+        if (l.action !== 'SUPPLY_CLIENT') return;
+        const name = extractClientName(l);
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (!map[key]) map[key] = { name, count: 0, hidden: hiddenClients.includes(key) };
+        map[key].count++;
+      });
+      return Object.values(map).sort((a, b) => a.name.localeCompare(b));
+    }
+
+    function renderClientManager() {
+      const list = document.getElementById('client-manager-list');
+      const clients = getClients();
+      if (!clients.length) {
+        list.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:20px;">No clients yet.</p>';
+        return;
+      }
+      list.innerHTML = clients.map(c => `
+        <div class="order-item" style="opacity:${c.hidden ? 0.55 : 1};">
+          <div class="order-item-info">
+            <div class="order-item-name">${c.hidden ? '🚫 ' : '👤 '}${escapeHtml(c.name)}</div>
+            <div class="order-item-meta">${c.count} dispatch(es)${c.hidden ? ' · hidden from suggestions' : ''}</div>
+          </div>
+          <button class="btn btn-sm ${c.hidden ? '' : 'btn-danger'}" data-client-toggle="${escapeHtml(c.name)}">${c.hidden ? 'Restore' : 'Hide'}</button>
+        </div>
+      `).join('');
+      list.querySelectorAll('[data-client-toggle]').forEach(btn => {
+        btn.addEventListener('click', () => toggleClientHidden(btn.dataset.clientToggle));
+      });
+    }
+
+    function toggleClientHidden(name) {
+      const key = name.toLowerCase();
+      hiddenClients = hiddenClients.includes(key)
+        ? hiddenClients.filter(k => k !== key)
+        : [...hiddenClients, key];
+      db.ref('aiMemory/prefs/hiddenClients').set(hiddenClients);
+      renderClientManager();
+      updateClientList();
+    }
+
+    on('manage-clients-btn', 'click', () => {
+      document.getElementById('client-modal').classList.add('open');
+      renderClientManager();
+    });
 
     function updateCatList() {
       const dl = document.getElementById('cat-list');
