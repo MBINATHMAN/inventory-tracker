@@ -601,7 +601,8 @@
     <div class="modal-overlay" id="supplier-modal">
       <div class="modal" style="max-width: 600px;">
         <h2>🏭 Manage Suppliers</h2>
-        <div class="order-list" id="supplier-manager-list"></div>
+        <p style="font-size:12px; color:var(--text-tertiary); margin-top:-8px; margin-bottom:14px;">Rename fixes spelling across all items. Delete removes the supplier from every dropdown — its items are untouched, and you can restore it here anytime.</p>
+        <div class="order-list" id="supplier-manager-list" style="max-height:330px;"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" data-close="supplier-modal">Close</button>
         </div>
@@ -997,23 +998,34 @@
       appId: "1:283281271142:web:34d150e2f14bbaf18c40a7"
     };
 
-    // Guard: the Firebase libraries load from Google's CDN. If a preview sandbox,
-    // ad-blocker, or offline state blocks them, fail LOUDLY with a clear message
-    // instead of the cryptic browser "Script error".
-    if (typeof firebase === 'undefined' || typeof firebase.database !== 'function') {
+    // Guard: Firebase loads from Google's CDN. If it's blocked or the device is offline,
+    // fall back to the last locally-cached snapshot: the app still opens (view-only).
+    const FIREBASE_OK = (typeof firebase !== 'undefined' && typeof firebase.database === 'function');
+    if (!FIREBASE_OK) {
       const banner = document.createElement('div');
       banner.style.cssText = 'position:fixed;top:12px;left:12px;right:12px;z-index:9999;' +
         'padding:14px 18px;border-radius:10px;background:#dc2626;color:#fff;' +
         'font:600 14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.3)';
-      banner.textContent = '\u26a0\ufe0f Firebase could not load. This app needs internet access to Google\u2019s servers. ' +
-        'If you\u2019re previewing inside an editor or sandbox, instead open the saved .html file directly in a full browser ' +
-        '(Chrome/Edge/Safari). Also check ad-blockers or firewalls blocking gstatic.com / googleapis.com.';
+      banner.textContent = '\u26a0\ufe0f You are offline and Firebase could not load. Showing your last saved data — ' +
+        'you can VIEW stock, but changes will NOT save until you reconnect to the internet. ' +
+        'Check ad-blockers/firewalls blocking gstatic.com, or open this file in a full browser with internet.';
       document.body.appendChild(banner);
-      throw new Error('Firebase unavailable');
+      const dotEl = document.getElementById('sync-dot');
+      const labelEl = document.getElementById('sync-label');
+      if (dotEl) dotEl.className = 'badge-dot offline';
+      if (labelEl) labelEl.textContent = 'Offline (cached data) \ud83d\udcc1';
     }
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    if (FIREBASE_OK) firebase.initializeApp(firebaseConfig);
+    const db = FIREBASE_OK ? firebase.database() : {
+      ref() {
+        return {
+          on() {},
+          transaction() { return Promise.reject(new Error('You are offline — changes cannot be saved')); },
+          update() { return Promise.reject(new Error('You are offline — changes cannot be saved')); },
+          set() { return Promise.reject(new Error('You are offline — changes cannot be saved')); }
+        };
+      }
+    };
 
     // Never fail silently: surface any unexpected error on screen.
     window.addEventListener('error', e => {
@@ -1027,9 +1039,30 @@
     let auditLogs = [];
     let recEntries = {};   // receive-screen typed values; survives search/filtering
     let hiddenClients = []; // client names hidden from dispatch suggestions
+    let hiddenSuppliers = []; // deleted suppliers (hidden from all dropdowns)
     let sortCol = 'name';
     let sortDir = 'asc';
     const LEAD_TIME_DAYS = 14; // supplier lead time assumed by the forecast engine
+
+    // ---- Offline cache: snapshot the database into localStorage so the app opens
+    // instantly and still works (view-only) when reloaded without internet ----
+    const CACHE_KEYS = { items: 'inv_cache_items', audit: 'inv_cache_audit', mem: 'inv_cache_mem', at: 'inv_cache_at' };
+    function loadCache() {
+      try {
+        const rawI = localStorage.getItem(CACHE_KEYS.items);
+        if (rawI) items = JSON.parse(rawI) || [];
+        const rawA = localStorage.getItem(CACHE_KEYS.audit);
+        if (rawA) auditLogs = JSON.parse(rawA) || [];
+      } catch (e) {}
+    }
+    function saveCache() {
+      try {
+        localStorage.setItem(CACHE_KEYS.items, JSON.stringify(items));
+        localStorage.setItem(CACHE_KEYS.audit, JSON.stringify(auditLogs.slice(0, 800)));
+        localStorage.setItem(CACHE_KEYS.mem, JSON.stringify(aiMemory));
+        localStorage.setItem(CACHE_KEYS.at, new Date().toISOString());
+      } catch (e) {}
+    }
 
     /* ------------------------------ Utilities ------------------------------ */
 
@@ -1039,7 +1072,7 @@
     }
 
     // Canonical supplier list: trimmed, case-insensitively deduped (first spelling wins)
-    function getSuppliers() {
+    function getSuppliers(includeHidden = false) {
       const map = {};
       items.forEach(i => {
         const raw = String(i.supplier || '').trim();
@@ -1047,7 +1080,9 @@
         const key = raw.toLowerCase();
         if (!map[key]) map[key] = raw;
       });
-      return Object.values(map).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+      return Object.values(map)
+        .filter(s => includeHidden || !hiddenSuppliers.includes(s.toLowerCase()))
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     }
 
     function toast(msg, type = 'info') {
@@ -1118,6 +1153,13 @@
 
     /* ------------------------------ Realtime ------------------------------ */
 
+    // Seed from the offline cache so the app paints immediately (and opens without internet)
+    loadCache();
+    render();
+    updateSupplierList();
+    updateCatList();
+    updateClientList();
+
     db.ref('.info/connected').on('value', (snap) => {
       const dot = document.getElementById('sync-dot');
       const label = document.getElementById('sync-label');
@@ -1136,12 +1178,14 @@
       render();
       updateSupplierList();
       updateCatList();
+      saveCache();
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
       auditLogs = data ? Object.values(data).sort((a, b) => String(b.id).localeCompare(String(a.id))) : [];
       updateClientList();
+      saveCache();
       if (document.getElementById('audit-modal').classList.contains('open')) renderAuditLog();
     });
 
@@ -1154,7 +1198,9 @@
       aiMemory.aliases = d.aliases || {};
       aiMemory.prefs = Object.assign({ leadTime: LEAD_TIME_DAYS }, d.prefs);
       hiddenClients = (aiMemory.prefs.hiddenClients) || [];
+      hiddenSuppliers = (aiMemory.prefs.hiddenSuppliers) || [];
       updateClientList();
+      saveCache();
     });
 
     /* --------------------------- Modal open/close --------------------------- */
@@ -1864,20 +1910,45 @@
 
     function renderSupplierManager() {
       const list = document.getElementById('supplier-manager-list');
-      const suppliers = getSuppliers();
+      const suppliers = getSuppliers(true);
       if (!suppliers.length) {
         list.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">No suppliers yet — add one to an item first.</p>';
         return;
       }
-      list.innerHTML = suppliers.map(sup => `
-        <div class="order-item">
-          <div class="order-item-info"><div class="order-item-name">🏭 ${escapeHtml(sup)}</div></div>
-          <button class="btn btn-sm" data-rename-sup="${escapeHtml(sup)}">✏️ Rename</button>
-        </div>
-      `).join('');
+      list.innerHTML = suppliers.map(sup => {
+        const count = items.filter(i => (i.supplier || '').trim().toLowerCase() === sup.toLowerCase()).length;
+        const hidden = hiddenSuppliers.includes(sup.toLowerCase());
+        return `
+        <div class="order-item" style="opacity:${hidden ? 0.55 : 1};">
+          <div class="order-item-info">
+            <div class="order-item-name">${hidden ? '🚫 ' : '🏭 '}${escapeHtml(sup)}</div>
+            <div class="order-item-meta">${count} item(s)${hidden ? ' · deleted — hidden from all dropdowns' : ''}</div>
+          </div>
+          ${hidden
+            ? `<button class="btn btn-sm" data-restore-sup="${escapeHtml(sup)}">Restore</button>`
+            : `<button class="btn btn-sm" data-rename-sup="${escapeHtml(sup)}">✏️ Rename</button>
+               <button class="btn btn-sm btn-danger" data-delete-sup="${escapeHtml(sup)}">🗑️ Delete</button>`}
+        </div>`;
+      }).join('');
       list.querySelectorAll('[data-rename-sup]').forEach(btn => {
         btn.addEventListener('click', () => renameSupplier(btn.dataset.renameSup));
       });
+      list.querySelectorAll('[data-delete-sup]').forEach(btn => {
+        btn.addEventListener('click', () => toggleSupplierHidden(btn.dataset.deleteSup, true));
+      });
+      list.querySelectorAll('[data-restore-sup]').forEach(btn => {
+        btn.addEventListener('click', () => toggleSupplierHidden(btn.dataset.restoreSup, false));
+      });
+    }
+
+    function toggleSupplierHidden(name, hide) {
+      const key = name.toLowerCase();
+      hiddenSuppliers = hide
+        ? [...new Set([...hiddenSuppliers, key])]
+        : hiddenSuppliers.filter(k => k !== key);
+      db.ref('aiMemory/prefs/hiddenSuppliers').set(hiddenSuppliers);
+      renderSupplierManager();
+      toast(hide ? `"${name}" deleted — it no longer appears in supplier dropdowns.` : `"${name}" restored.`, 'success');
     }
 
     function renameSupplier(oldSup) {
@@ -2546,13 +2617,31 @@
         const val = loc === 'warehouse' ? (it.whCartons || 0) : (it.shopCartons || 0);
         return `
           <div class="order-item">
-            <div class="order-item-info"><div class="order-item-name">${escapeHtml(it.name)}</div></div>
-            <input type="number" class="order-qty" data-st="${escapeHtml(it.id)}" value="${val}" min="0" step="any">
+            <div class="order-item-info">
+              <div class="order-item-name">${escapeHtml(it.name)}</div>
+              <div class="order-item-meta">system: ${val} ctns</div>
+            </div>
+            <input type="number" class="order-qty" data-st="${escapeHtml(it.id)}" data-sys="${val}" value="${val}" min="0" step="any">
+            <span class="st-var" data-stvar="${escapeHtml(it.id)}" style="font-size:12px; font-weight:700; min-width:70px; text-align:right; color:var(--text-tertiary);">—</span>
           </div>
         `;
       }).join('');
     }
     on('stocktake-location', 'change', renderStockTake);
+
+    // Live variance indicator while counting
+    on('stocktake-items', 'input', e => {
+      const t = e.target;
+      if (!t || t.dataset.st === undefined) return;
+      const span = document.querySelector(`[data-stvar="${CSS.escape(t.dataset.st)}"]`);
+      if (!span) return;
+      const physical = parseFloat(t.value) || 0;
+      const system = parseFloat(t.dataset.sys) || 0;
+      const diff = Math.round((physical - system) * 1000) / 1000;
+      if (diff === 0) { span.textContent = '✓ match'; span.style.color = 'var(--positive)'; }
+      else if (diff > 0) { span.textContent = `+${diff} ctns`; span.style.color = 'var(--accent-blue)'; }
+      else { span.textContent = `${diff} ctns`; span.style.color = 'var(--danger)'; }
+    });
 
     on('save-stocktake-btn', 'click', () => {
       const loc = document.getElementById('stocktake-location').value;
