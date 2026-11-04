@@ -831,13 +831,21 @@
     <div class="modal-overlay" id="stocktake-modal">
       <div class="modal">
         <h2>📋 Physical Stock Take</h2>
-        <div class="form-group">
-          <label>Counting Location</label>
-          <select id="stocktake-location">
-            <option value="warehouse">Warehouse</option>
-            <option value="shop">Shop Store</option>
-          </select>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Counting Location</label>
+            <select id="stocktake-location">
+              <option value="warehouse">Warehouse</option>
+              <option value="shop">Shop Store</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Filter Supplier</label>
+            <select id="stocktake-supplier"><option value="">-- All Suppliers --</option></select>
+          </div>
         </div>
+        <input type="text" id="stocktake-search" placeholder="🔍 Search product or SKU…"
+               style="width:100%; padding:8px 12px; margin-bottom:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px; box-sizing:border-box; outline:none;">
         <div class="order-list" id="stocktake-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" data-close="stocktake-modal">Cancel</button>
@@ -1217,7 +1225,7 @@
         if (id === 'supplier-modal') renderSupplierManager();
         if (id === 'pricelist-modal') openPricelist();
         if (id === 'audit-modal') renderAuditLog();
-        if (id === 'stocktake-modal') renderStockTake();
+        if (id === 'stocktake-modal') openStockTake();
         if (id === 'order-modal') initOrderModal();
         if (id === 'ai-forecast-modal') renderAiForecast();
         if (id === 'backup-modal') initBackupModal();
@@ -2610,29 +2618,62 @@
 
     /* --------------------------- Stock Take --------------------------- */
 
+    // Typed counts persist across location switches, supplier filters and search (keyed location:id)
+    let stEntries = {};
+
+    function openStockTake() {
+      stEntries = {};
+      document.getElementById('stocktake-supplier').innerHTML =
+        '<option value="">-- All Suppliers --</option>' +
+        getSuppliers().map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+      document.getElementById('stocktake-search').value = '';
+      renderStockTake();
+    }
+
     function renderStockTake() {
       const loc = document.getElementById('stocktake-location').value;
+      const sup = (document.getElementById('stocktake-supplier').value || '').trim().toLowerCase();
+      const q = (document.getElementById('stocktake-search').value || '').trim().toLowerCase();
       const container = document.getElementById('stocktake-items');
-      container.innerHTML = items.map(it => {
+
+      // Seed typed counts from the DOM so filtering / switching location never loses them
+      document.querySelectorAll('#stocktake-items [data-st]').forEach(inp => {
+        stEntries[`${inp.dataset.loc || ''}:${inp.dataset.st}`] = inp.value;
+      });
+
+      let list = items;
+      if (sup) list = list.filter(i => (i.supplier || '').trim().toLowerCase() === sup);
+      if (q) list = list.filter(i =>
+        (i.name || '').toLowerCase().includes(q) || (i.sku || '').toLowerCase().includes(q));
+
+      if (!list.length) {
+        container.innerHTML = '<p style="padding:20px; text-align:center; color:var(--text-tertiary);">No items match the current filters.</p>';
+        return;
+      }
+      container.innerHTML = list.map(it => {
         const val = loc === 'warehouse' ? (it.whCartons || 0) : (it.shopCartons || 0);
+        const typed = stEntries[`${loc}:${it.id}`];
         return `
           <div class="order-item">
             <div class="order-item-info">
               <div class="order-item-name">${escapeHtml(it.name)}</div>
               <div class="order-item-meta">system: ${val} ctns</div>
             </div>
-            <input type="number" class="order-qty" data-st="${escapeHtml(it.id)}" data-sys="${val}" value="${val}" min="0" step="any">
+            <input type="number" class="order-qty" data-st="${escapeHtml(it.id)}" data-loc="${loc}" data-sys="${val}" value="${typed !== undefined ? typed : val}" min="0" step="any">
             <span class="st-var" data-stvar="${escapeHtml(it.id)}" style="font-size:12px; font-weight:700; min-width:70px; text-align:right; color:var(--text-tertiary);">—</span>
           </div>
         `;
       }).join('');
     }
     on('stocktake-location', 'change', renderStockTake);
+    on('stocktake-supplier', 'change', renderStockTake);
+    on('stocktake-search', 'input', renderStockTake);
 
     // Live variance indicator while counting
     on('stocktake-items', 'input', e => {
       const t = e.target;
       if (!t || t.dataset.st === undefined) return;
+      stEntries[`${t.dataset.loc || ''}:${t.dataset.st}`] = t.value;
       const span = document.querySelector(`[data-stvar="${CSS.escape(t.dataset.st)}"]`);
       if (!span) return;
       const physical = parseFloat(t.value) || 0;
@@ -2651,9 +2692,9 @@
       let changed = 0;
 
       items.forEach(it => {
-        const inp = document.querySelector(`[data-st="${CSS.escape(String(it.id))}"]`);
-        if (!inp) return;
-        const physical = parseFloat(inp.value) || 0;
+        const typed = stEntries[`${loc}:${it.id}`];
+        if (typed === undefined) return;   // never touched = unchanged
+        const physical = parseFloat(typed) || 0;
         const system = parseFloat(it[locKey]) || 0;
         if (physical !== system) {
           changed++;
@@ -2672,6 +2713,7 @@
       variances.forEach(v => { updates['/auditLogs/' + v.id] = v; });
       db.ref().update(updates)
         .then(() => {
+          stEntries = {};
           toast(`Stock take saved: ${changed} variance(s) logged to the audit trail.`, 'success');
           closeModal('stocktake-modal');
         })
