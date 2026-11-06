@@ -961,6 +961,10 @@
             <div class="form-group"><label>Supplier</label><input type="text" id="f-supplier" list="supplier-list" placeholder="Pick existing or type a new one…"><datalist id="supplier-list"></datalist></div>
             <div class="form-group"><label>Min Reorder Level (ctns)</label><input type="number" id="f-min" min="0" value="2"></div>
           </div>
+          <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:2px;">
+            <input type="checkbox" id="f-catalog" style="width:auto; margin:0;">
+            <label for="f-catalog" style="margin:0; font-size:13px; color:var(--text-secondary); cursor:pointer;">Price reference only — packaging, cost &amp; selling price, no stock tracking</label>
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn" data-close="item-modal">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Item</button>
@@ -1265,7 +1269,7 @@
           (i.supplier || '').toLowerCase().includes(q);
 
         const totalCartons = (parseFloat(i.whCartons) || 0) + (parseFloat(i.shopCartons) || 0);
-        const isLow = totalCartons <= (parseInt(i.min) || 2);
+        const isLow = !i.catalog && totalCartons <= (parseInt(i.min) || 2);
         return lowStockOnly ? (matchesQuery && isLow) : matchesQuery;
       });
 
@@ -1291,14 +1295,14 @@
           const priceVal = parseFloat(it.price) || 0;
           let marginPct = priceVal > 0 ? (((priceVal - costVal) / priceVal) * 100) : 0;
           const totalCtns = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
-          const isLow = totalCtns <= (parseInt(it.min) || 2);
+          const isLow = !it.catalog && totalCtns <= (parseInt(it.min) || 2);
 
           return `
             <tr ${isLow ? 'class="low-stock-row"' : ''}>
               <td data-label="Item"><strong>${escapeHtml(it.name)}</strong><br><small>${escapeHtml(it.sku)}</small></td>
-              <td data-label="Category"><span class="chip">${escapeHtml(it.category || 'General')}</span></td>
-              <td data-label="Warehouse"><strong>${it.whCartons || 0} Cartons</strong></td>
-              <td data-label="Shop"><strong>${it.shopCartons || 0} Cartons</strong></td>
+              <td data-label="Category"><span class="chip">${escapeHtml(it.category || 'General')}</span>${it.catalog ? ' <span class="chip chip-blue">CATALOG</span>' : ''}</td>
+              <td data-label="Warehouse">${it.catalog ? '<span style="color:var(--text-tertiary);">not tracked</span>' : `<strong>${it.whCartons || 0} Cartons</strong>`}</td>
+              <td data-label="Shop">${it.catalog ? '<span style="color:var(--text-tertiary);">not tracked</span>' : `<strong>${it.shopCartons || 0} Cartons</strong>`}</td>
               <td data-label="Unit Cost">KSh ${costVal.toFixed(2)}</td>
               <td data-label="Unit Price"><strong>KSh ${priceVal.toFixed(2)}</strong></td>
               <td data-label="Margin"><span class="chip ${marginPct >= 0 ? 'chip-positive' : 'chip-danger'}">${marginPct.toFixed(1)}%</span></td>
@@ -1317,19 +1321,20 @@
       }
 
       const num = (i, k) => parseFloat(i[k]) || 0;
-      const totalCost = items.reduce((s, i) =>
+      const stocked = items.filter(i => !i.catalog);
+      const totalCost = stocked.reduce((s, i) =>
         s + (num(i, 'whCartons') + num(i, 'shopCartons')) * (num(i, 'qtyPerCarton') || 1) * num(i, 'cost'), 0);
-      const totalRetail = items.reduce((s, i) =>
+      const totalRetail = stocked.reduce((s, i) =>
         s + (num(i, 'whCartons') + num(i, 'shopCartons')) * (num(i, 'qtyPerCarton') || 1) * num(i, 'price'), 0);
 
       document.getElementById('stat-total').textContent = items.length;
       document.getElementById('stat-cost').textContent = 'KSh ' + totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 });
       document.getElementById('stat-value').textContent = 'KSh ' + totalRetail.toLocaleString(undefined, { maximumFractionDigits: 0 });
-      document.getElementById('stat-wh').textContent = items.reduce((s, i) => s + num(i, 'whCartons'), 0).toFixed(1) + ' ctns';
-      document.getElementById('stat-shop').textContent = items.reduce((s, i) => s + num(i, 'shopCartons'), 0).toFixed(1) + ' ctns';
+      document.getElementById('stat-wh').textContent = stocked.reduce((s, i) => s + num(i, 'whCartons'), 0).toFixed(1) + ' ctns';
+      document.getElementById('stat-shop').textContent = stocked.reduce((s, i) => s + num(i, 'shopCartons'), 0).toFixed(1) + ' ctns';
 
       // Low-stock banner
-      const lowItems = items.filter(i => (num(i, 'whCartons') + num(i, 'shopCartons')) <= (parseInt(i.min) || 2));
+      const lowItems = items.filter(i => !i.catalog && (num(i, 'whCartons') + num(i, 'shopCartons')) <= (parseInt(i.min) || 2));
       const banner = document.getElementById('low-stock-banner');
       if (!banner) return;
       if (lowItems.length) {
@@ -1703,7 +1708,7 @@
       });
 
       const lead = Math.max(1, parseInt(aiMemory.prefs && aiMemory.prefs.leadTime) || LEAD_TIME_DAYS);
-      return items.map(it => {
+      return items.filter(it => !it.catalog).map(it => {
         const total = (parseFloat(it.whCartons) || 0) + (parseFloat(it.shopCartons) || 0);
         const wOut = (weighted[it.id] || 0) + (weighted[it.name] || 0);
         const out30 = (raw[it.id] || 0) + (raw[it.name] || 0);
@@ -1999,6 +2004,7 @@
       unit_price: 'price', price: 'price', unitprice: 'price', selling_price: 'price',
       supplier: 'supplier',
       min: 'min', min_reorder_level: 'min', reorder_level: 'min',
+      catalog: 'catalog', price_reference: 'catalog', no_stock: 'catalog',
       unit: 'unit', unit_label: 'unit'
     };
 
@@ -2043,6 +2049,7 @@
           price: parseFloat(get('price')) || (existing ? (existing.price || 0) : 0),
           supplier: get('supplier') || (existing ? (existing.supplier || '') : ''),
           min: Math.max(0, parseInt(get('min'))) || (existing ? (existing.min ?? 2) : 2),
+          catalog: /^(yes|true|1)$/i.test(get('catalog')) || (existing ? !!existing.catalog : false),
           // Stock levels only overwritten when the column exists in the CSV
           whCartons: fieldIdx.whCartons !== undefined ? (parseFloat(get('whCartons')) || 0) : (existing ? (existing.whCartons || 0) : 0),
           shopCartons: fieldIdx.shopCartons !== undefined ? (parseFloat(get('shopCartons')) || 0) : (existing ? (existing.shopCartons || 0) : 0)
@@ -2641,7 +2648,7 @@
         stEntries[`${inp.dataset.loc || ''}:${inp.dataset.st}`] = inp.value;
       });
 
-      let list = items;
+      let list = items.filter(i => !i.catalog);
       if (sup) list = list.filter(i => (i.supplier || '').trim().toLowerCase() === sup);
       if (q) list = list.filter(i =>
         (i.name || '').toLowerCase().includes(q) || (i.sku || '').toLowerCase().includes(q));
@@ -2930,6 +2937,7 @@
           document.getElementById('f-price').value = it.price || 0;
           document.getElementById('f-supplier').value = it.supplier || '';
           document.getElementById('f-min').value = it.min ?? 2;
+          document.getElementById('f-catalog').checked = !!it.catalog;
         }
       }
       openModal('item-modal');
@@ -2957,6 +2965,7 @@
         price: Math.max(0, parseFloat(document.getElementById('f-price').value) || 0),
         supplier: document.getElementById('f-supplier').value.trim(),
         min: Math.max(0, parseInt(document.getElementById('f-min').value) || 0),
+        catalog: document.getElementById('f-catalog').checked,
         whCartons: existing ? (existing.whCartons || 0) : 0,
         shopCartons: existing ? (existing.shopCartons || 0) : 0
       };
@@ -3143,10 +3152,10 @@
     });
 
     on('export-csv-btn', 'click', () => {
-      const headers = ['Name', 'Model', 'SKU', 'Category', 'Qty Per Carton', 'Unit', 'Warehouse Cartons', 'Shop Cartons', 'Unit Cost', 'Unit Price', 'Supplier', 'Min Reorder'];
+      const headers = ['Name', 'Model', 'SKU', 'Category', 'Qty Per Carton', 'Unit', 'Warehouse Cartons', 'Shop Cartons', 'Unit Cost', 'Unit Price', 'Supplier', 'Min Reorder', 'Catalog'];
       const rows = items.map(i => [
         i.name, i.model || '', i.sku, i.category || 'General', i.qtyPerCarton || 1, i.unit || 'pcs',
-        i.whCartons || 0, i.shopCartons || 0, i.cost || 0, i.price || 0, i.supplier || '', i.min ?? 2
+        i.whCartons || 0, i.shopCartons || 0, i.cost || 0, i.price || 0, i.supplier || '', i.min ?? 2, i.catalog ? 'yes' : 'no'
       ]);
       const dateStr = new Date().toISOString().slice(0, 10);
       downloadCsv(`inventory_export_${dateStr}.csv`, headers, rows);
