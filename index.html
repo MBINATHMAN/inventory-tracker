@@ -1103,20 +1103,18 @@
     //     "aiMemory":{".read":"auth != null",".write":"auth != null"}}}
     // Plus: Firebase Console -> Authentication -> Sign-in method -> enable "Anonymous".
     if (FIREBASE_OK) {
+      // Sign-in is OPTIONAL: with open rules the app works fully without it.
+      // If Anonymous auth is ever enabled in the Firebase console, the app signs
+      // in silently and shows a lock on the badge. No banners, no nagging.
       firebase.auth().onAuthStateChanged(user => {
-        const labelEl = document.getElementById('sync-label');
         if (user) {
-          if (labelEl && labelEl.textContent.startsWith('Connecting')) labelEl.textContent = 'Signed in (secure) \ud83d\udd12';
-        } else if (labelEl) {
-          labelEl.textContent = 'Sign-in required \u26a0\ufe0f';
+          const labelEl = document.getElementById('sync-label');
+          if (labelEl && labelEl.textContent.indexOf('Connected') !== -1) {
+            labelEl.textContent = 'Connected \u00b7 signed in \ud83d\udd12';
+          }
         }
       });
-      firebase.auth().signInAnonymously().catch(err => {
-        const b = document.createElement('div');
-        b.style.cssText = 'position:fixed;top:12px;left:12px;right:12px;z-index:9999;padding:14px 18px;border-radius:10px;background:#dc2626;color:#fff;font:600 14px/1.5 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.3)';
-        b.textContent = '\u26a0\ufe0f Login failed: ' + err.message + ' — open Firebase Console \u2192 Authentication \u2192 Sign-in method \u2192 enable "Anonymous", and update your database rules (see instructions at the top of the script).';
-        document.body.appendChild(b);
-      });
+      firebase.auth().signInAnonymously().catch(() => { /* open mode — fine */ });
     }
     const db = FIREBASE_OK ? firebase.database() : {
       ref() {
