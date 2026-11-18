@@ -261,22 +261,22 @@
         overflow: visible !important; box-shadow: none !important;
       }
 
-      #pricelist-print-area, #pricelist-print-area * {
+      #pricelist-print-area, #pricelist-print-area *, #invoice-print-area, #invoice-print-area * {
         visibility: visible !important;
         color: #000 !important;                       /* kills dark-mode gray leakage */
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-      #pricelist-print-area {
+      #pricelist-print-area, #invoice-print-area {
         position: absolute !important; left: 0 !important; top: 0 !important;
         width: 100% !important; background: #fff !important;
         padding: 0 !important; margin: 0 !important;
       }
       /* Undo mobile min-width/scroll traps */
-      #pricelist-print-area table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
+      #pricelist-print-area table, #invoice-print-area table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
       #pl-table-wrap { max-height: none !important; height: auto !important; overflow: visible !important; border: none !important; display: block !important; min-width: 0 !important; }
-      #pricelist-print-area tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-      #pricelist-print-area th, #pricelist-print-area td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
+      #pricelist-print-area tr, #invoice-print-area tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+      #pricelist-print-area th, #pricelist-print-area td, #invoice-print-area th, #invoice-print-area td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
       #pricelist-print-area th { background-color: #f2f2f2 !important; }
       #pricelist-print-area .num { text-align: right !important; }   /* money columns stay right-aligned */
       #pricelist-print-area div[style*="border-bottom"] { border-color: #999 !important; }
@@ -477,6 +477,7 @@
       <button class="btn" data-open="stocktake-modal">📋 Stock Take</button>
       <button class="btn" data-open="order-modal">⚡ Smart PO Order</button>
       <button class="btn" style="border-color:var(--accent-blue); color:var(--accent-blue);" data-open="return-modal">↩️ Returns</button>
+      <button class="btn" style="border-color:var(--positive); color:var(--positive);" data-open="invoice-modal">🧾 Invoices</button>
       <button class="btn" id="export-csv-btn">Export CSV</button>
       <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" data-open="backup-modal">💾 Backup / Restore</button>
       <button class="btn" style="border-color:var(--accent-orange); color:var(--accent-orange);" data-open="cleanup-modal">🧹 Cleanup</button>
@@ -996,6 +997,29 @@
       </div>
     </div>
 
+    <!-- Invoice Lookup Modal -->
+    <div class="modal-overlay" id="invoice-modal">
+      <div class="modal" style="max-width: 800px;">
+        <h2>🧾 Supplier Invoices</h2>
+        <div class="form-row" style="grid-template-columns: 2fr 1fr; gap:8px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Invoice / Order No.</label>
+            <select id="inv-select"></select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>&nbsp;</label>
+            <button type="button" class="btn btn-primary" id="inv-print-btn" style="width:100%;">🖨️ Print / Save PDF</button>
+          </div>
+        </div>
+        <div id="invoice-print-area" style="border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin-top:12px; background:var(--bg);">
+          <div id="inv-body"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" data-close="invoice-modal">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Add/Edit Item Modal -->
     <div class="modal-overlay" id="item-modal">
       <div class="modal">
@@ -1321,6 +1345,7 @@
         if (id === 'order-modal') initOrderModal();
         if (id === 'return-modal') openReturns();
         if (id === 'cleanup-modal') renderCleanup();
+        if (id === 'invoice-modal') openInvoices();
         if (id === 'ai-forecast-modal') renderAiForecast();
         if (id === 'backup-modal') initBackupModal();
       });
@@ -2349,7 +2374,7 @@
             db.ref('items/' + id + '/' + locKey).transaction(cur => Math.max(0, (parseFloat(cur) || 0) + good))
               .then(res => {
                 if (!res.committed) return false;
-                if (good > 0) pushLog(makeLog('RECEIVE', item.name, qtyText, receiveRoute, { itemId: id, locKey, prev, newVal: prev + qtyCart }));
+                if (good > 0) pushLog(makeLog('RECEIVE', item.name, qtyText, receiveRoute, { itemId: id, locKey, prev, newVal: prev + qtyCart, cost: newCost, supplierName: supplier }));
                 if (dmgCart > 0) pushLog(makeLog('DAMAGE_LOSS', item.name, dmgText, damageRoute, { itemId: id, locKey, prev: prev + qtyCart, newVal: prev + qtyCart - dmgCart }));
                 return true;
               })
@@ -2732,6 +2757,101 @@
           renderCleanup();
         });
       });
+    }
+
+    /* --------------------------- Invoice Lookup --------------------------- */
+    function extractInvoiceRef(route) {
+      const m = String(route || '').match(/Ref:\s*(.+?)(?:\s*\u00b7|$)/);
+      return m ? m[1].trim() : '';
+    }
+
+    function openInvoices() {
+      const sel = document.getElementById('inv-select');
+      const groups = {};
+      auditLogs.forEach(l => {
+        if (l.action !== 'RECEIVE') return;
+        const ref = extractInvoiceRef(l.route) || '(no invoice no.)';
+        if (!groups[ref]) groups[ref] = { ref, date: l.date, count: 0 };
+        groups[ref].count++;
+        if (String(l.date).localeCompare(String(groups[ref].date)) > 0) groups[ref].date = l.date;
+      });
+      const list = Object.values(groups).sort((a, b) => {
+        const da = parseLogDate(a.date), db = parseLogDate(b.date);
+        return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+      });
+      sel.innerHTML = list.map(g =>
+        `<option value="${escapeHtml(g.ref)}">${escapeHtml(g.ref)} \u2014 ${escapeHtml(g.date)} (${g.count} line${g.count > 1 ? 's' : ''})</option>`).join('');
+      renderInvoice();
+    }
+    on('inv-select', 'change', renderInvoice);
+    on('inv-print-btn', 'click', () => window.print());
+
+    function renderInvoice() {
+      const body = document.getElementById('inv-body');
+      const ref = document.getElementById('inv-select').value;
+      if (!ref) { body.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:24px;">No received invoices yet.</p>'; return; }
+      const logs = auditLogs.filter(l => l.action === 'RECEIVE' &&
+        (extractInvoiceRef(l.route) || '(no invoice no.)') === ref);
+      if (!logs.length) { body.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); padding:24px;">No lines found.</p>'; return; }
+
+      const dest = (String(logs[0].route).match(/\u2794\s*([A-Za-z ]+)/) || [, ''])[1].trim();
+      const date = logs[0].date;
+      let supplier = logs[0].supplierName || '';
+      let missingCost = false;
+      const lines = logs.map(l => {
+        const it = items.find(i => String(i.id) === String(l.itemId)) || items.find(i => i.name === l.itemName) || {};
+        const cartons = logQtyToCartons(l);
+        const qpc = parseFloat(it.qtyPerCarton) || 1;
+        const cost = (l.cost !== undefined) ? (parseFloat(l.cost) || 0) : (parseFloat(it.cost) || 0);
+        if (l.cost === undefined) missingCost = true;
+        if (!supplier) supplier = it.supplier || '';
+        return { name: l.itemName, qtyText: l.qty, cartons, unit: it.unit || 'pcs', cost, total: cartons * qpc * cost };
+      });
+      const grand = lines.reduce((s, x) => s + x.total, 0);
+      const damaged = auditLogs.filter(l => l.action === 'DAMAGE_LOSS' && String(l.route || '').includes(ref));
+
+      body.innerHTML = `
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; border-bottom:2px solid var(--border); padding-bottom:10px; margin-bottom:10px;">
+          <div>
+            <div style="font-size:18px; font-weight:700;">SUPPLIER INVOICE</div>
+            <div style="font-size:13px; color:var(--text-secondary);">Invoice No: <strong>${escapeHtml(ref)}</strong></div>
+            <div style="font-size:13px; color:var(--text-secondary);">Supplier: <strong>${escapeHtml(supplier || '\u2014')}</strong></div>
+          </div>
+          <div style="text-align:right; font-size:13px; color:var(--text-secondary);">
+            <div>Date: <strong>${escapeHtml(date)}</strong></div>
+            <div>Received into: <strong>${escapeHtml(dest)}</strong></div>
+            <div>${logs.length} line(s)</div>
+          </div>
+        </div>
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead>
+            <tr style="background:var(--surface);">
+              <th style="padding:6px 8px; text-align:left; border-bottom:1px solid var(--border);">Item</th>
+              <th style="padding:6px 8px; text-align:right; border-bottom:1px solid var(--border);">Qty received</th>
+              <th style="padding:6px 8px; text-align:right; border-bottom:1px solid var(--border);">Cartons</th>
+              <th style="padding:6px 8px; text-align:right; border-bottom:1px solid var(--border);">Unit cost</th>
+              <th style="padding:6px 8px; text-align:right; border-bottom:1px solid var(--border);">Line total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lines.map(x => `
+              <tr>
+                <td style="padding:6px 8px; border-bottom:1px solid var(--border-divider);">${escapeHtml(x.name)}</td>
+                <td style="padding:6px 8px; border-bottom:1px solid var(--border-divider); text-align:right;">${escapeHtml(x.qtyText)}</td>
+                <td style="padding:6px 8px; border-bottom:1px solid var(--border-divider); text-align:right;">${Math.round(x.cartons * 1000) / 1000}</td>
+                <td style="padding:6px 8px; border-bottom:1px solid var(--border-divider); text-align:right;">KSh ${x.cost.toFixed(2)}</td>
+                <td style="padding:6px 8px; border-bottom:1px solid var(--border-divider); text-align:right;"><strong>KSh ${x.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+        ${damaged.length ? `<div style="margin-top:10px; padding:8px 10px; border:1px dashed var(--danger); border-radius:8px; font-size:12px; color:var(--danger);">
+          \u26a0\ufe0f Damaged on arrival under this invoice: ${damaged.map(d => `${escapeHtml(d.itemName)} (${escapeHtml(d.qty)})`).join(', ')}
+        </div>` : ''}
+        <div style="text-align:right; margin-top:12px; font-size:15px;">
+          Invoice total: <strong style="color:var(--accent-purple);">KSh ${grand.toLocaleString(undefined, {minimumFractionDigits: 2})}</strong>
+        </div>
+        ${missingCost ? '<div style="font-size:11px; color:var(--text-tertiary); margin-top:6px;">Note: lines received before cost-tracking show current item costs.</div>' : ''}
+      `;
     }
 
     /* --------------------------- Audit Log --------------------------- */
