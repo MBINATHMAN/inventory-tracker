@@ -301,6 +301,15 @@
     .rec-input { width: 70px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); text-align: right; font-weight: 600; }
     .rec-input.rec-cost { width: 96px; }
 
+    /* ---- Login & staff mode ---- */
+    .staff-card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:12px 14px; margin-bottom:10px; }
+    .staff-price { font-size:17px; font-weight:700; color:var(--positive); white-space:nowrap; }
+    .staff-price small { display:block; font-size:10px; font-weight:500; color:var(--text-tertiary); text-align:right; }
+    .staff-stock { display:flex; gap:6px; margin-top:10px; }
+    .staff-stock div { flex:1; border:1px solid var(--border-divider); border-radius:10px; background:var(--bg); padding:6px 10px; font-size:11px; color:var(--text-tertiary); }
+    .staff-stock b { display:block; font-size:14px; color:var(--text); }
+    .pending-chip { font-size:10px; font-weight:700; color:#fff; background:var(--accent-orange); border-radius:6px; padding:2px 6px; }
+
     /* ================= MOBILE RESPONSIVE (phones & small tablets) ================= */
     @media (max-width: 820px) {
       body { padding: 12px; }
@@ -405,7 +414,7 @@
 <base target="_blank">
 </head>
 <body>
-  <div class="container">
+  <div class="container" id="main-app">
     <div class="header">
       <h1>Multi-Location Inventory Management</h1>
       <div class="header-actions">
@@ -416,6 +425,8 @@
         <button class="btn" style="border-color:var(--accent-purple); color:var(--accent-purple);" data-open="ai-forecast-modal">🤖 AI Forecast</button>
         <button class="btn" data-open="bulk-receive-modal">📦 Receive Supplier Order</button>
         <button class="btn btn-primary" data-open="item-modal">+ Add single item</button>
+        <button class="btn" id="users-btn" style="display:none; border-color:var(--accent-orange); color:var(--accent-orange);">👤 Users <span id="pending-badge" style="display:none; background:var(--danger); color:#fff; border-radius:999px; padding:0 6px; font-size:10px; margin-left:4px;"></span></button>
+        <button class="btn" id="logout-btn" style="display:none;">Logout</button>
       </div>
     </div>
 
@@ -1004,6 +1015,8 @@
         <div class="form-row" style="grid-template-columns: 2fr 1fr; gap:8px;">
           <div class="form-group" style="margin-bottom:0;">
             <label>Invoice / Order No.</label>
+            <input type="text" id="inv-filter" placeholder="🔍 Type invoice no. or date to filter…" autocomplete="off"
+                   style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:14px; box-sizing:border-box; outline:none; margin-bottom:6px;">
             <select id="inv-select"></select>
           </div>
           <div class="form-group" style="margin-bottom:0;">
@@ -1016,6 +1029,18 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="btn" data-close="invoice-modal">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Management Modal -->
+    <div class="modal-overlay" id="users-modal">
+      <div class="modal" style="max-width: 640px;">
+        <h2>\ud83d\udc64 User Accounts</h2>
+        <p style="font-size:12px; color:var(--text-tertiary); margin-top:-8px; margin-bottom:14px;">Approve new signups and control what each person can see. <strong>Admin</strong> = full access. <strong>Staff</strong> = search, selling price and stock only.</p>
+        <div id="users-body"></div>
+        <div class="modal-actions" style="margin-top:14px;">
+          <button type="button" class="btn" data-close="users-modal">Close</button>
         </div>
       </div>
     </div>
@@ -1061,6 +1086,35 @@
         </form>
       </div>
     </div>
+  </div>
+
+  <!-- Login / Signup screen -->
+  <div id="login-screen" style="display:none; position:fixed; inset:0; z-index:400; background:var(--bg); align-items:center; justify-content:center; padding:16px; overflow-y:auto;">
+    <div style="width:100%; max-width:380px; border:1px solid var(--border); border-radius:16px; padding:28px 24px; background:var(--surface);">
+      <div style="text-align:center; margin-bottom:18px;">
+        <div style="font-size:34px;">\ud83d\udce6</div>
+        <div style="font-size:19px; font-weight:700;">Inventory Manager</div>
+        <div style="font-size:12px; color:var(--text-tertiary);" id="login-sub">Sign in to continue</div>
+      </div>
+      <div style="display:flex; gap:6px; margin-bottom:14px;">
+        <button class="btn" id="tab-signin" style="flex:1;">Sign in</button>
+        <button class="btn" id="tab-signup" style="flex:1;">Create account</button>
+      </div>
+      <div class="form-group"><label>Username</label><input type="text" id="login-user" autocomplete="username" style="font-size:16px;"></div>
+      <div class="form-group"><label>Password</label><input type="password" id="login-pass" autocomplete="current-password" style="font-size:16px;"></div>
+      <div id="login-msg" style="font-size:13px; min-height:18px; margin-bottom:8px;"></div>
+      <button class="btn btn-primary" id="login-go" style="width:100%; padding:12px;">Sign in</button>
+    </div>
+  </div>
+
+  <!-- Restricted staff view -->
+  <div id="staff-mode" style="display:none; max-width:640px; margin:0 auto;">
+    <div class="header" style="margin-top:8px;">
+      <h1>\ud83d\udce6 Stock Availability</h1>
+      <button class="btn" id="staff-logout-btn">Logout</button>
+    </div>
+    <input type="text" id="staff-search" placeholder="\ud83d\udd0d Search product, SKU or category\u2026" style="width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--bg); color:var(--text); font-size:16px; outline:none; margin-bottom:12px;">
+    <div id="staff-list"></div>
   </div>
 
   <div id="toast-container"></div>
@@ -1124,7 +1178,9 @@
     //   {"rules":{"items":{".read":"auth != null",".write":"auth != null",
     //     "$item_id":{".validate":"newData.hasChildren(['name','sku'])"}},
     //     "auditLogs":{".read":"auth != null",".write":"auth != null"},
-    //     "aiMemory":{".read":"auth != null",".write":"auth != null"}}}
+    //     "aiMemory":{".read":"auth != null",".write":"auth != null"},
+    //     "users":{".read":"auth != null",".write":"auth != null"},
+    //     "notifications":{".read":"auth != null",".write":"auth != null"}}}
     // Plus: Firebase Console -> Authentication -> Sign-in method -> enable "Anonymous".
     if (FIREBASE_OK) {
       // Sign-in is OPTIONAL: with open rules the app works fully without it.
@@ -1330,6 +1386,216 @@
     /* --------------------------- Modal open/close --------------------------- */
     // All [data-open] buttons open their target modal; [data-close] close it.
     // Backdrop click also closes. No inline onclick string interpolation anywhere.
+    /* --------------------------- Logins & user accounts ---------------------------
+       Outer gate: Firebase Anonymous auth (silent) + rules requiring auth.
+       Inner gate: username/password accounts, salt + SHA-256 hashed, admin-approved.
+       Admin = full app. Staff = restricted view: search, selling price, stock left. */
+    const SESSION_KEY = 'inv_session';
+    let currentUser = null;
+    let authMode = 'signin';
+    const seenNotif = {};
+
+    async function sha256(text) {
+      try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) {
+        let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text.charCodeAt(i);
+          h1 = Math.imul(h1 ^ ch, 2654435761);
+          h2 = Math.imul(h2 ^ ch, 1597334677);
+        }
+        h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+        h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+        return (h2 >>> 0).toString(16) + (h1 >>> 0).toString(16);
+      }
+    }
+    function getSession() { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } }
+    function setSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch (e) {} }
+    function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
+
+    function setAuthMode(m) {
+      authMode = m;
+      document.getElementById('tab-signin').className = 'btn' + (m === 'signin' ? ' btn-primary' : '');
+      document.getElementById('tab-signup').className = 'btn' + (m === 'signup' ? ' btn-primary' : '');
+      document.getElementById('login-go').textContent = m === 'signin' ? 'Sign in' : 'Request account';
+      document.getElementById('login-sub').textContent = m === 'signin' ? 'Sign in to continue' : 'Create an account \u2014 the admin approves it';
+      document.getElementById('login-msg').textContent = '';
+    }
+    function loginMsg(text, isErr) {
+      const el = document.getElementById('login-msg');
+      el.textContent = text;
+      el.style.color = isErr ? 'var(--danger)' : 'var(--positive)';
+    }
+    function showLoginScreen() {
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('main-app').style.display = 'none';
+      setAuthMode('signin');
+    }
+    on('tab-signin', 'click', () => setAuthMode('signin'));
+    on('tab-signup', 'click', () => setAuthMode('signup'));
+
+    on('login-go', 'click', async () => {
+      const username = document.getElementById('login-user').value.trim();
+      const password = document.getElementById('login-pass').value;
+      if (!username || !password) { loginMsg('Enter username and password.', true); return; }
+      const key = username.toLowerCase();
+      const rec = (await db.ref('users/' + key).get()).val();
+      if (authMode === 'signin') {
+        if (!rec) { loginMsg('No such username. Check spelling or create an account.', true); return; }
+        if ((await sha256(rec.salt + ':' + password)) !== rec.passHash) { loginMsg('Wrong password.', true); return; }
+        if (rec.status !== 'approved') { loginMsg('Your account is awaiting admin approval.', true); return; }
+        setSession({ username: rec.username, role: rec.role || 'staff' });
+        enterApp(rec.role || 'staff', rec.username);
+      } else {
+        if (rec) { loginMsg('That username is taken.', true); return; }
+        // Bootstrap: the very first account ever created becomes the admin automatically
+        const usersVal = (await db.ref('users').get()).val();
+        const isFirst = !usersVal || !Object.keys(usersVal).length;
+        const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        const passHash = await sha256(salt + ':' + password);
+        await db.ref('users/' + key).set({ username, salt, passHash, role: isFirst ? 'admin' : 'staff', status: isFirst ? 'approved' : 'pending', createdAt: new Date().toISOString() });
+        if (!isFirst) {
+          await db.ref('notifications/' + Date.now()).set({ type: 'signup', username, date: new Date().toLocaleDateString('en-GB'), read: false });
+          loginMsg('Request sent! The admin will approve your account.', false);
+        } else {
+          loginMsg('Admin account created. Welcome!', false);
+          setSession({ username, role: 'admin' });
+          enterApp('admin', username);
+        }
+      }
+    });
+
+    function enterApp(role, username) {
+      currentUser = { username, role };
+      document.getElementById('login-screen').style.display = 'none';
+      if (role === 'admin') {
+        document.getElementById('main-app').style.display = 'block';
+        document.getElementById('staff-mode').style.display = 'none';
+        document.getElementById('users-btn').style.display = 'inline-block';
+        document.getElementById('logout-btn').style.display = 'inline-block';
+      } else {
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('staff-mode').style.display = 'block';
+        renderStaffMode();
+      }
+    }
+    function doLogout() { clearSession(); location.reload(); }
+    on('logout-btn', 'click', doLogout);
+    on('staff-logout-btn', 'click', doLogout);
+
+    // Staff view: search, selling price, stock left \u2014 nothing else
+    function renderStaffMode() {
+      const q = (document.getElementById('staff-search').value || '').trim().toLowerCase();
+      const list = items.filter(i => !q ||
+          (i.name || '').toLowerCase().includes(q) || (i.sku || '').toLowerCase().includes(q) ||
+          (i.category || '').toLowerCase().includes(q))
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      document.getElementById('staff-list').innerHTML = list.map(i => {
+        const wh = parseFloat(i.whCartons) || 0, sh = parseFloat(i.shopCartons) || 0;
+        const price = parseFloat(i.price) || 0;
+        return `<div class="staff-card">
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+            <div>
+              <div style="font-weight:600; font-size:15px;">${escapeHtml(i.name)}</div>
+              <div style="font-size:11px; color:var(--text-tertiary); font-family:var(--font-mono);">${escapeHtml(i.sku)}</div>
+            </div>
+            <div class="staff-price">KSh ${price.toLocaleString(undefined, { minimumFractionDigits: 2 })}<small>per ${escapeHtml(i.unit || 'pc')}</small></div>
+          </div>
+          <div class="staff-stock">
+            <div>Warehouse<b>${fmtCartons(wh, i.qtyPerCarton, i.unit)}</b></div>
+            <div>Shop<b>${fmtCartons(sh, i.qtyPerCarton, i.unit)}</b></div>
+            <div>Total<b>${fmtCartons(wh + sh, i.qtyPerCarton, i.unit)}</b></div>
+          </div>
+          <div style="font-size:11px; color:var(--accent-blue); margin-top:6px; font-weight:600;">${escapeHtml(i.category || 'General')} \u00b7 ${i.qtyPerCarton || 1} ${escapeHtml(i.unit || 'pcs')}/carton</div>
+        </div>`;
+      }).join('') || '<p style="text-align:center; color:var(--text-tertiary); padding:30px;">No products found.</p>';
+    }
+    on('staff-search', 'input', renderStaffMode);
+    db.ref('items').on('value', () => { if (currentUser && currentUser.role === 'staff') renderStaffMode(); });
+
+    // Admin notifications for new account requests
+    db.ref('notifications').on('value', snap => {
+      const unread = Object.values(snap.val() || {}).filter(n => !n.read && n.type === 'signup');
+      const badge = document.getElementById('pending-badge');
+      if (unread.length) {
+        badge.style.display = 'inline-block';
+        badge.textContent = unread.length;
+        unread.forEach(n => {
+          if (!seenNotif[n.username + '|' + n.date]) {
+            seenNotif[n.username + '|' + n.date] = 1;
+            toast(`\ud83d\udc64 New account request: ${n.username}`, 'info');
+          }
+        });
+      } else badge.style.display = 'none';
+    });
+
+    // Admin: user management
+    async function renderUsersPanel() {
+      const users = Object.values((await db.ref('users').get()).val() || {});
+      const pending = users.filter(u => u.status === 'pending');
+      const active = users.filter(u => u.status === 'approved');
+      const body = document.getElementById('users-body');
+      const row = (u) => `
+        <div class="order-item" style="padding:8px 0;">
+          <div class="order-item-info">
+            <div class="order-item-name" style="font-size:14px;">${escapeHtml(u.username)}
+              ${u.status === 'pending' ? '<span class="pending-chip">PENDING</span>'
+                : `<span class="chip chip-blue">${escapeHtml(u.role || 'staff')}</span>`}</div>
+            <div class="order-item-meta">requested ${escapeHtml(u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-GB') : '-')}</div>
+          </div>
+          <div style="display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end;">
+            ${u.status === 'pending' ? `
+              <button class="btn btn-sm btn-primary" data-approve="${escapeHtml(u.username)}">Approve as Staff</button>
+              <button class="btn btn-sm" data-approveadm="${escapeHtml(u.username)}">Approve as Admin</button>
+              <button class="btn btn-sm btn-danger" data-deluser="${escapeHtml(u.username)}">Reject</button>`
+            : `
+              <select data-role="${escapeHtml(u.username)}" style="padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text); font-size:12px;">
+                <option value="staff" ${u.role !== 'admin' ? 'selected' : ''}>Staff</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+              </select>
+              <button class="btn btn-sm btn-danger" data-deluser="${escapeHtml(u.username)}">Delete</button>`}
+          </div>
+        </div>`;
+      body.innerHTML = `
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding-bottom:4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Pending approval (${pending.length})</div>
+        ${pending.length ? pending.map(row).join('') : '<div style="padding:8px 4px; font-size:13px; color:var(--positive);">\u2713 No pending requests</div>'}
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Active users (${active.length})</div>
+        ${active.map(row).join('')}`;
+      body.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approve, 'staff')));
+      body.querySelectorAll('[data-approveadm]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approveadm, 'admin')));
+      body.querySelectorAll('[data-deluser]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm(`Delete account "${b.dataset.deluser}"?`)) return;
+        await db.ref('users/' + b.dataset.deluser.toLowerCase()).remove();
+        renderUsersPanel();
+      }));
+      body.querySelectorAll('[data-role]').forEach(sel => sel.addEventListener('change', async () => {
+        await db.ref('users/' + sel.dataset.role.toLowerCase()).update({ role: sel.value });
+        toast('Role updated.', 'success');
+        renderUsersPanel();
+      }));
+    }
+    async function approveUser(username, role) {
+      await db.ref('users/' + username.toLowerCase()).update({ status: 'approved', role });
+      const notifs = (await db.ref('notifications').get()).val() || {};
+      const updates = {};
+      Object.entries(notifs).forEach(([id, n]) => {
+        if (n.type === 'signup' && n.username === username) updates['/notifications/' + id + '/read'] = true;
+      });
+      if (Object.keys(updates).length) await db.ref().update(updates);
+      toast(`"${username}" approved as ${role}.`, 'success');
+      renderUsersPanel();
+    }
+    on('users-btn', 'click', () => { renderUsersPanel(); document.getElementById('users-modal').classList.add('open'); });
+
+    // Boot: restore session or show login
+    (function initAuth() {
+      const s = getSession();
+      if (s && s.username && s.role) enterApp(s.role, s.username);
+      else showLoginScreen();
+    })();
+
     document.querySelectorAll('[data-open]').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.open;
@@ -2775,14 +3041,32 @@
         groups[ref].count++;
         if (String(l.date).localeCompare(String(groups[ref].date)) > 0) groups[ref].date = l.date;
       });
-      const list = Object.values(groups).sort((a, b) => {
+      invoiceListCache = Object.values(groups).sort((a, b) => {
         const da = parseLogDate(a.date), db = parseLogDate(b.date);
         return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
       });
-      sel.innerHTML = list.map(g =>
-        `<option value="${escapeHtml(g.ref)}">${escapeHtml(g.ref)} \u2014 ${escapeHtml(g.date)} (${g.count} line${g.count > 1 ? 's' : ''})</option>`).join('');
+      document.getElementById('inv-filter').value = '';
+      renderInvoiceOptions(invoiceListCache);
       renderInvoice();
     }
+    let invoiceListCache = [];
+
+    function renderInvoiceOptions(list) {
+      const sel = document.getElementById('inv-select');
+      sel.innerHTML = list.map(g =>
+        `<option value="${escapeHtml(g.ref)}">${escapeHtml(g.ref)} \u2014 ${escapeHtml(g.date)} (${g.count} line${g.count > 1 ? 's' : ''})</option>`).join('');
+      // Explicitly select the first match so the invoice view always follows the filter
+      if (list.length) sel.value = list[0].ref;
+    }
+
+    // Filter invoices by number or date as you type
+    on('inv-filter', 'input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      renderInvoiceOptions(q
+        ? invoiceListCache.filter(g => g.ref.toLowerCase().includes(q) || String(g.date).toLowerCase().includes(q))
+        : invoiceListCache);
+      renderInvoice();
+    });
     on('inv-select', 'change', renderInvoice);
     on('inv-print-btn', 'click', () => window.print());
 
