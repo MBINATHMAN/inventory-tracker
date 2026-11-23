@@ -1221,6 +1221,7 @@
     window.addEventListener('error', e => {
       try { toast('\u26a0\ufe0f ' + (e.message || 'Unexpected error'), 'error'); } catch (_) {}
     });
+    window.addEventListener('pagehide', () => { clearTimeout(cacheWriteTimer); saveCache(); });
     window.addEventListener('unhandledrejection', e => {
       try { toast('\u26a0\ufe0f ' + ((e.reason && e.reason.message) || 'Network/async error'), 'error'); } catch (_) {}
     });
@@ -1252,6 +1253,11 @@
         localStorage.setItem(CACHE_KEYS.mem, JSON.stringify(aiMemory));
         localStorage.setItem(CACHE_KEYS.at, new Date().toISOString());
       } catch (e) {}
+    }
+    let cacheWriteTimer = null;
+    function saveCacheThrottled() {
+      clearTimeout(cacheWriteTimer);
+      cacheWriteTimer = setTimeout(saveCache, 3000);
     }
 
     /* ------------------------------ Utilities ------------------------------ */
@@ -1368,14 +1374,15 @@
       render();
       updateSupplierList();
       updateCatList();
-      saveCache();
+      saveCacheThrottled();
     });
 
     db.ref('auditLogs').on('value', (snapshot) => {
       const data = snapshot.val();
-      auditLogs = data ? Object.values(data).sort((a, b) => String(b.id).localeCompare(String(a.id))) : [];
-      updateClientList();
-      saveCache();
+      // Keep unsorted in memory: sorting the whole history on EVERY movement gets
+      // progressively slower as the audit trail grows. Displays sort on demand.
+      auditLogs = data ? Object.values(data) : [];
+      saveCacheThrottled();
       if (document.getElementById('audit-modal').classList.contains('open')) renderAuditLog();
       if (document.getElementById('users-modal').classList.contains('open')) renderUsersPanel();
     });
@@ -1613,7 +1620,10 @@
         ${active.map(row).join('')}
         <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Recent sign-ins &amp; staff activity</div>
         ${(() => {
-          const acts = auditLogs.filter(l => ['LOGIN', 'LOGOUT', 'SEARCH'].includes(l.action)).slice(0, 50);
+          const acts = auditLogs
+            .filter(l => ['LOGIN', 'LOGOUT', 'SEARCH'].includes(l.action))
+            .sort((a, b) => String(b.id).localeCompare(String(a.id)))
+            .slice(0, 50);
           return acts.length ? acts.map(l => `
             <div style="display:flex; justify-content:space-between; gap:8px; font-size:12px; padding:5px 0; border-bottom:1px solid var(--border-divider); flex-wrap:wrap;">
               <span><strong>${escapeHtml(l.itemName)}</strong>
@@ -3214,7 +3224,10 @@
     let auditFrom = '', auditTo = '', auditQuery = '';
 
     function getFilteredAudit() {
-      return auditLogs.filter(l => {
+      return auditLogs
+        .slice()
+        .sort((a, b) => String(b.id).localeCompare(String(a.id)))
+        .filter(l => {
         if (auditFrom || auditTo) {
           const d = parseLogDate(l.date);
           if (d) {
