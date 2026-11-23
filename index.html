@@ -1377,6 +1377,7 @@
       updateClientList();
       saveCache();
       if (document.getElementById('audit-modal').classList.contains('open')) renderAuditLog();
+      if (document.getElementById('users-modal').classList.contains('open')) renderUsersPanel();
     });
 
     // AI memory: learned aliases + user preferences. Lives in Firebase so it
@@ -1463,6 +1464,10 @@
         if ((await sha256(rec.salt + ':' + password)) !== rec.passHash) { loginMsg('Wrong password.', true); return; }
         if (rec.status !== 'approved') { loginMsg('Your account is awaiting admin approval.', true); return; }
         setSession({ username: rec.username, role: rec.role || 'staff' });
+        try {
+          pushLog(makeLog('LOGIN', rec.username, '-',
+            `${rec.role || 'staff'} sign-in \u00b7 ${new Date().toLocaleString('en-GB')}`));
+        } catch (e) {}
         enterApp(rec.role || 'staff', rec.username);
       } else {
         if (rec) { loginMsg('That username is taken.', true); return; }
@@ -1479,6 +1484,9 @@
           } else {
             loginMsg('Admin account created. Welcome!', false);
             setSession({ username, role: 'admin' });
+            try {
+              pushLog(makeLog('LOGIN', username, '-', `admin sign-in (first account) \u00b7 ${new Date().toLocaleString('en-GB')}`));
+            } catch (e) {}
             enterApp('admin', username);
           }
         } catch (err) {
@@ -1501,7 +1509,13 @@
         renderStaffMode();
       }
     }
-    function doLogout() { clearSession(); location.reload(); }
+    function doLogout() {
+      try {
+        pushLog(makeLog('LOGOUT', currentUser ? currentUser.username : '-', '-',
+          `sign-out \u00b7 ${new Date().toLocaleString('en-GB')}`));
+      } catch (e) {}
+      clearSession(); location.reload();
+    }
     on('logout-btn', 'click', doLogout);
     on('staff-logout-btn', 'click', doLogout);
 
@@ -1532,7 +1546,21 @@
         </div>`;
       }).join('') || '<p style="text-align:center; color:var(--text-tertiary); padding:30px;">No products found.</p>';
     }
-    on('staff-search', 'input', renderStaffMode);
+    let staffSearchTimer = null, lastLoggedSearch = '';
+    on('staff-search', 'input', () => {
+      renderStaffMode();
+      clearTimeout(staffSearchTimer);
+      staffSearchTimer = setTimeout(() => {
+        const q = (document.getElementById('staff-search').value || '').trim();
+        if (q && q !== lastLoggedSearch) {
+          lastLoggedSearch = q;
+          try {
+            pushLog(makeLog('SEARCH', currentUser ? currentUser.username : 'staff', '-',
+              `searched: "${q}" \u00b7 ${new Date().toLocaleString('en-GB')}`));
+          } catch (e) {}
+        }
+      }, 1500);
+    });
     db.ref('items').on('value', () => { if (currentUser && currentUser.role === 'staff') renderStaffMode(); });
 
     // Admin notifications for new account requests
@@ -1582,7 +1610,18 @@
         <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding-bottom:4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Pending approval (${pending.length})</div>
         ${pending.length ? pending.map(row).join('') : '<div style="padding:8px 4px; font-size:13px; color:var(--positive);">\u2713 No pending requests</div>'}
         <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Active users (${active.length})</div>
-        ${active.map(row).join('')}`;
+        ${active.map(row).join('')}
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Recent sign-ins &amp; staff activity</div>
+        ${(() => {
+          const acts = auditLogs.filter(l => ['LOGIN', 'LOGOUT', 'SEARCH'].includes(l.action)).slice(0, 50);
+          return acts.length ? acts.map(l => `
+            <div style="display:flex; justify-content:space-between; gap:8px; font-size:12px; padding:5px 0; border-bottom:1px solid var(--border-divider); flex-wrap:wrap;">
+              <span><strong>${escapeHtml(l.itemName)}</strong>
+                <span class="chip" style="font-size:10px; background:${l.action === 'SEARCH' ? 'rgba(37,99,235,0.12); color:var(--accent-blue)' : 'rgba(124,58,237,0.12); color:var(--accent-purple)'}">${l.action}</span>
+                ${escapeHtml(l.route)}</span>
+            </div>`).join('')
+            : '<div style="padding:8px 4px; font-size:13px; color:var(--text-tertiary);">No activity yet.</div>';
+        })()}`;
       body.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approve, 'staff')));
       body.querySelectorAll('[data-approveadm]').forEach(b => b.addEventListener('click', () => approveUser(b.dataset.approveadm, 'admin')));
       body.querySelectorAll('[data-deluser]').forEach(b => b.addEventListener('click', async () => {
