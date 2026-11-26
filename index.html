@@ -261,22 +261,22 @@
         overflow: visible !important; box-shadow: none !important;
       }
 
-      #pricelist-print-area, #pricelist-print-area *, #invoice-print-area, #invoice-print-area * {
+      #pricelist-print-area, #pricelist-print-area *, #invoice-print-area, #invoice-print-area *, #stocktake-print-area, #stocktake-print-area * {
         visibility: visible !important;
         color: #000 !important;                       /* kills dark-mode gray leakage */
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-      #pricelist-print-area, #invoice-print-area {
+      #pricelist-print-area, #invoice-print-area, #stocktake-print-area {
         position: absolute !important; left: 0 !important; top: 0 !important;
         width: 100% !important; background: #fff !important;
         padding: 0 !important; margin: 0 !important;
       }
       /* Undo mobile min-width/scroll traps */
-      #pricelist-print-area table, #invoice-print-area table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
+      #pricelist-print-area table, #invoice-print-area table, #stocktake-print-area table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
       #pl-table-wrap { max-height: none !important; height: auto !important; overflow: visible !important; border: none !important; display: block !important; min-width: 0 !important; }
-      #pricelist-print-area tr, #invoice-print-area tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-      #pricelist-print-area th, #pricelist-print-area td, #invoice-print-area th, #invoice-print-area td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
+      #pricelist-print-area tr, #invoice-print-area tr, #stocktake-print-area tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+      #pricelist-print-area th, #pricelist-print-area td, #invoice-print-area th, #invoice-print-area td, #stocktake-print-area th, #stocktake-print-area td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
       #pricelist-print-area th { background-color: #f2f2f2 !important; }
       #pricelist-print-area .num { text-align: right !important; }   /* money columns stay right-aligned */
       #pricelist-print-area div[style*="border-bottom"] { border-color: #999 !important; }
@@ -903,6 +903,7 @@
         <div class="order-list" id="stocktake-items"></div>
         <div class="modal-actions" style="margin-top:16px;">
           <button type="button" class="btn" data-close="stocktake-modal">Cancel</button>
+          <button type="button" class="btn" id="st-print-btn">🖨️ Print Counting Sheet</button>
           <button type="button" class="btn btn-primary" id="save-stocktake-btn">Save Count</button>
         </div>
       </div>
@@ -1149,6 +1150,9 @@
     <input type="text" id="staff-search" placeholder="🔍 Search product, SKU or category…" style="width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--bg); color:var(--text); font-size:16px; outline:none; margin-bottom:12px;">
     <div id="staff-list"></div>
   </div>
+
+  <!-- Stock take counting sheet (print only) -->
+  <div id="stocktake-print-area" style="display:none;"></div>
 
   <div id="toast-container"></div>
 
@@ -3482,6 +3486,63 @@
       if (diff === 0) { span.textContent = '✓ match'; span.style.color = 'var(--positive)'; }
       else if (diff > 0) { span.textContent = `+${diff} ctns`; span.style.color = 'var(--accent-blue)'; }
       else { span.textContent = `${diff} ctns`; span.style.color = 'var(--danger)'; }
+    });
+
+    // Printable counting sheet for staff: matches the selected location/supplier filter
+    on('st-print-btn', 'click', () => {
+      const loc = document.getElementById('stocktake-location').value;
+      const sup = (document.getElementById('stocktake-supplier').value || '').trim();
+      let list = items.filter(i => !i.catalog);
+      if (sup) list = list.filter(i => (i.supplier || '').trim().toLowerCase() === sup.trim().toLowerCase());
+      list = list.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+      const area = document.getElementById('stocktake-print-area');
+      area.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #000; padding-bottom:8px; margin-bottom:10px;">
+          <div>
+            <div style="font-size:20px; font-weight:800;">STOCK TAKE SHEET \u2014 ${loc.toUpperCase()}</div>
+            <div style="font-size:12px;">${sup ? 'Supplier: ' + escapeHtml(sup) + ' \u00b7 ' : ''}${list.length} item(s)</div>
+          </div>
+          <div style="font-size:13px; text-align:right;">
+            Date: ________________<br>Counted by: ________________
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:26px;">#</th>
+              <th style="text-align:left;">Item</th>
+              <th style="text-align:left;">SKU</th>
+              <th style="text-align:left;">Supplier</th>
+              <th style="width:76px; text-align:right;">System ctns</th>
+              <th style="width:100px;">Physical count</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map((it, idx) => {
+              const sys = loc === 'warehouse' ? (it.whCartons || 0) : (it.shopCartons || 0);
+              return `<tr>
+                <td>${idx + 1}</td>
+                <td>${escapeHtml(it.name)}</td>
+                <td>${escapeHtml(it.sku)}</td>
+                <td>${escapeHtml(it.supplier || '')}</td>
+                <td style="text-align:right;">${sys}</td>
+                <td></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:18px; font-size:12px; display:flex; justify-content:space-between;">
+          <span>Checked by: ________________</span>
+          <span>Signature: ________________</span>
+          <span>Date: ________________</span>
+        </div>`;
+
+      const originalTitle = document.title;
+      document.title = `StockTake_${loc}_${new Date().toISOString().slice(0, 10)}`;
+      const restore = () => { document.title = originalTitle; window.removeEventListener('afterprint', restore); };
+      window.addEventListener('afterprint', restore);
+      window.print();
     });
 
     on('save-stocktake-btn', 'click', () => {
