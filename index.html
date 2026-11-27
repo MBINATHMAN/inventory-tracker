@@ -245,41 +245,18 @@
     @keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes toast-out { to { opacity: 0; transform: translateY(10px); } }
 
-    /* CONTINUOUS TABLE PRINT CSS - PREVENTS ONE ITEM PER PAGE */
+    /* PRINT: isolate ONLY the print area — a few clean white pages, never the whole app */
     @media print {
       @page { size: A4; margin: 12mm; }
-
-      body * { visibility: hidden !important; }
-
-      /* Neutralise the modal stack so the print area's absolute positioning
-         resolves against the PAGE, not the centred modal (fixes shifted/clipped output). */
-      .modal-overlay { position: static !important; display: block !important; padding: 0 !important; background: none !important; }
-      .modal, .modal-overlay.open .modal {
-        position: static !important; transform: none !important;
-        width: 100% !important; max-width: none !important; max-height: none !important;
-        padding: 0 !important; margin: 0 !important; border: none !important;
-        overflow: visible !important; box-shadow: none !important;
-      }
-
-      #pricelist-print-area, #pricelist-print-area *, #invoice-print-area, #invoice-print-area *, #stocktake-print-area, #stocktake-print-area * {
-        visibility: visible !important;
-        color: #000 !important;                       /* kills dark-mode gray leakage */
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-      }
-      #pricelist-print-area, #invoice-print-area, #stocktake-print-area {
-        position: absolute !important; left: 0 !important; top: 0 !important;
-        width: 100% !important; background: #fff !important;
-        padding: 0 !important; margin: 0 !important;
-      }
-      /* Undo mobile min-width/scroll traps */
-      #pricelist-print-area table, #invoice-print-area table, #stocktake-print-area table { min-width: 0 !important; width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
-      #pl-table-wrap { max-height: none !important; height: auto !important; overflow: visible !important; border: none !important; display: block !important; min-width: 0 !important; }
-      #pricelist-print-area tr, #invoice-print-area tr, #stocktake-print-area tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-      #pricelist-print-area th, #pricelist-print-area td, #invoice-print-area th, #invoice-print-area td, #stocktake-print-area th, #stocktake-print-area td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
-      #pricelist-print-area th { background-color: #f2f2f2 !important; }
-      #pricelist-print-area .num { text-align: right !important; }   /* money columns stay right-aligned */
-      #pricelist-print-area div[style*="border-bottom"] { border-color: #999 !important; }
+      html, body { background: #fff !important; }
+      body.printing > *:not(#print-root) { display: none !important; }
+      #print-root { display: block !important; }
+      #print-root * { color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      #print-root table { width: 100% !important; border-collapse: collapse !important; font-size: 10pt !important; }
+      #print-root tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+      #print-root th, #print-root td { border: 1px solid #ccc !important; padding: 5px 8px !important; text-align: left !important; }
+      #print-root th { background-color: #f2f2f2 !important; }
+      #print-root .num { text-align: right !important; }
     }
 
     /* ---- AI Assistant chat ---- */
@@ -1138,6 +1115,13 @@
       <div class="form-group"><label>Password</label><input type="password" id="login-pass" autocomplete="current-password" style="font-size:16px;"></div>
       <div id="login-msg" style="font-size:13px; min-height:18px; margin-bottom:8px;"></div>
       <button class="btn btn-primary" id="login-go" style="width:100%; padding:12px;">Sign in</button>
+      <div style="text-align:center; margin-top:12px; font-size:12px; color:var(--text-tertiary);">
+        <span id="forgot-link" style="cursor:pointer; color:var(--accent-blue); font-weight:600;">Forgot your password?</span>
+        <div id="forgot-note" style="display:none; margin-top:8px; text-align:left; background:var(--bg); border:1px solid var(--border-divider); border-radius:8px; padding:10px 12px; line-height:1.6;">
+          <strong>Staff:</strong> contact your admin \u2014 they open <em>\ud83d\udc64 Users</em>, tap <em>Reset PW</em> on your account, and give you the new password.<br><br>
+          <strong>Admin:</strong> open Firebase Console \u2192 Realtime Database \u2192 <em>users</em> \u2192 delete your own username entry. Then sign up again with the same username \u2014 you are made admin automatically, even if staff accounts still exist.
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1151,8 +1135,11 @@
     <div id="staff-list"></div>
   </div>
 
-  <!-- Stock take counting sheet (print only) -->
+  <!-- Stock take counting sheet (print only; moved into #print-root at print time) -->
   <div id="stocktake-print-area" style="display:none;"></div>
+
+  <!-- Print isolation target: the ONLY thing visible when printing -->
+  <div id="print-root" style="display:none;"></div>
 
   <div id="toast-container"></div>
 
@@ -1342,6 +1329,37 @@
       return rows;
     }
 
+    // Print ONLY the given area: move it into #print-root (everything else is
+    // display:none while printing), then restore it afterwards. Guarantees a few
+    // clean white pages instead of the whole app layout.
+    function printArea(areaId, title) {
+      const area = document.getElementById(areaId);
+      const root = document.getElementById('print-root');
+      const originalParent = area.parentNode;
+      const originalNext = area.nextSibling;
+      const hadDisplay = area.style.display;
+      root.appendChild(area);
+      area.style.display = 'block';
+      document.body.classList.add('printing');
+      const originalTitle = document.title;
+      if (title) document.title = title;
+      let restored = false;
+      const restore = () => {
+        if (restored) return;
+        restored = true;
+        window.removeEventListener('afterprint', restore);
+        window.removeEventListener('focus', restore);
+        document.body.classList.remove('printing');
+        if (originalNext && originalNext.parentNode === originalParent) originalParent.insertBefore(area, originalNext);
+        else originalParent.appendChild(area);
+        area.style.display = hadDisplay;
+        document.title = originalTitle;
+      };
+      window.addEventListener('afterprint', restore);
+      window.addEventListener('focus', restore);
+      window.print();
+    }
+
     function downloadCsv(filename, headers, rows) {
       const csv = [headers, ...rows]
         .map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(','))
@@ -1492,6 +1510,10 @@
       document.getElementById('main-app').style.display = 'none';
       setAuthMode('signin');
     }
+    on('forgot-link', 'click', () => {
+      const n = document.getElementById('forgot-note');
+      n.style.display = n.style.display === 'none' ? 'block' : 'none';
+    });
     on('tab-signin', 'click', () => setAuthMode('signin'));
     on('tab-signup', 'click', () => setAuthMode('signup'));
 
@@ -1521,7 +1543,9 @@
         if (rec) { loginMsg('That username is taken.', true); return; }
         // Bootstrap: the very first account ever created becomes the admin automatically
         const usersVal = (await db.ref('users').get()).val();
-        const isFirst = !usersVal || !Object.keys(usersVal).length;
+        const existing = Object.values(usersVal || {});
+        // "First account" = no approved admin exists (staff accounts don't block admin recovery)
+        const isFirst = !existing.some(u => u.status === 'approved' && u.role === 'admin');
         const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
         const passHash = await sha256(salt + ':' + password);
         try {
@@ -1651,6 +1675,7 @@
                 <option value="staff" ${u.role !== 'admin' ? 'selected' : ''}>Staff</option>
                 <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
               </select>
+              <button class="btn btn-sm" data-resetpw="${escapeHtml(u.username)}">Reset PW</button>
               <button class="btn btn-sm btn-danger" data-deluser="${escapeHtml(u.username)}">Delete</button>`}
           </div>
         </div>`;
@@ -1679,6 +1704,15 @@
         if (!confirm(`Delete account "${b.dataset.deluser}"?`)) return;
         await db.ref('users/' + b.dataset.deluser.toLowerCase()).remove();
         renderUsersPanel();
+      }));
+      body.querySelectorAll('[data-resetpw]').forEach(b => b.addEventListener('click', async () => {
+        const pw = prompt(`Enter a NEW password for "${b.dataset.resetpw}" (minimum 4 characters):`);
+        if (!pw) return;
+        if (pw.length < 4) { toast('Password too short (minimum 4 characters).', 'error'); return; }
+        const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        const passHash = await sha256(salt + ':' + pw);
+        await db.ref('users/' + b.dataset.resetpw.toLowerCase()).update({ salt, passHash });
+        toast(`Password for "${b.dataset.resetpw}" has been reset.`, 'success');
       }));
       body.querySelectorAll('[data-role]').forEach(sel => sel.addEventListener('change', async () => {
         await db.ref('users/' + sel.dataset.role.toLowerCase()).update({ role: sel.value });
@@ -2308,11 +2342,7 @@
     // Print with a meaningful document title (used as the PDF filename in Chrome)
     on('pl-print-btn', 'click', () => {
       const supplier = document.getElementById('pl-supplier').value;
-      const originalTitle = document.title;
-      document.title = supplier ? `Price List - ${supplier}` : originalTitle;
-      const restore = () => { document.title = originalTitle; window.removeEventListener('afterprint', restore); };
-      window.addEventListener('afterprint', restore);
-      window.print();
+      printArea('pricelist-print-area', supplier ? `Price List - ${supplier}` : null);
     });
 
     // Save the price list as a real .xlsx workbook (falls back to CSV offline)
@@ -3204,7 +3234,10 @@
       renderInvoice();
     });
     on('inv-select', 'change', renderInvoice);
-    on('inv-print-btn', 'click', () => window.print());
+    on('inv-print-btn', 'click', () => {
+      const ref = document.getElementById('inv-select').value || 'invoice';
+      printArea('invoice-print-area', `Invoice ${ref}`);
+    });
 
     function renderInvoice() {
       const body = document.getElementById('inv-body');
@@ -3538,11 +3571,7 @@
           <span>Date: ________________</span>
         </div>`;
 
-      const originalTitle = document.title;
-      document.title = `StockTake_${loc}_${new Date().toISOString().slice(0, 10)}`;
-      const restore = () => { document.title = originalTitle; window.removeEventListener('afterprint', restore); };
-      window.addEventListener('afterprint', restore);
-      window.print();
+      printArea('stocktake-print-area', `StockTake_${loc}_${new Date().toISOString().slice(0, 10)}`);
     });
 
     on('save-stocktake-btn', 'click', () => {
