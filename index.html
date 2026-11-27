@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Inventory">
-  <link rel="manifest" href='data:application/manifest+json,{manifest}'>
-  <link rel="icon" type="image/png" href="data:image/png;base64,{icons[192]}">
-  <link rel="apple-touch-icon" href="data:image/png;base64,{icons[192]}">
+  <link rel="manifest" href='data:application/manifest+json,{"name": "Inventory Manager", "short_name": "Inventory", "start_url": ".", "display": "standalone", "background_color": "#7c3aed", "theme_color": "#7c3aed", "icons": [{"src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADdklEQVR4nO3dy1XbUBRAUZuVCqCbpLVkBK2FbpIWyCALFn/LSNbv7D2PrcE9us8WkONhRj+//3mY8/3Yprv7m+Nc73XRNzLwTOGSQUz+woaeS5o6hslezOAzp6lCGP0iBp8ljQ3hasw/NvwsbewMfqkeg88afWUbnL0BDD9r9ZXZPCsAw8/anTujgwMw/GzFObM6KADDz9YMndmTARh+tmrI7H4agOFn607N8IcBGH724rNZHvUgDLbu3QDc/dmbj2b6TQCGn716b7YdgUh7EYC7P3v3esZtANKeAnD3p+L5rNsApAmAtKvDwfGHnseZtwFIEwBpAiDt6PxPmQ1AmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBI+7b0BUzh9vf10peQ9OvH36UvYTQbgDQBkCYA0gRAmgBIEwBpAiBtF88BTlnb99Wnnlus5XoLz1dsANIEQJoASBMAaQIgTQCkCYA0AZAmANIEQJoASBMAaQIgTQCkCYC0xO8DbO3n2rd2vVtmA5AmANIEQJoASBMAaQIgTQCkJZ4DrOXv7GxN4XmEDUCaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApH1b+gLmcPv7eulLYKVsANIEQJoASBMAaQIgTQCkCYC048/vfx6WvghYig1AmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0q7u7m+OS18ELOHu/uZoA5AmANIEQNrV4fD/LLT0hcCcHmfeBiBNAKQ9BeAYRMXzWbcBSHsRgC3A3r2ecRuAtDcB2ALs1Xuz/e4GEAF789FMOwKR9mEAtgB78dksf7oBRMDWnZrhk0cgEbBVQ2Z30GcAEbA1Q2d28IdgEbAV58zqWd8CiYC1O3dGz/4aVASs1Vdmc9Qw+x8mWYMxN+VRD8JsA5Y2dgYnG2DbgDlNdfOd/A4uBC5p6lPHRY8wYmAKlzxqz3qGFwRDzPnZ8h9hUq2ME0ZUlAAAAABJRU5ErkJggg==", "sizes": "192x192", "type": "image/png"}, {"src": "data:image/png;base64,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", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}'>
+  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADdklEQVR4nO3dy1XbUBRAUZuVCqCbpLVkBK2FbpIWyCALFn/LSNbv7D2PrcE9us8WkONhRj+//3mY8/3Yprv7m+Nc73XRNzLwTOGSQUz+woaeS5o6hslezOAzp6lCGP0iBp8ljQ3hasw/NvwsbewMfqkeg88afWUbnL0BDD9r9ZXZPCsAw8/anTujgwMw/GzFObM6KADDz9YMndmTARh+tmrI7H4agOFn607N8IcBGH724rNZHvUgDLbu3QDc/dmbj2b6TQCGn716b7YdgUh7EYC7P3v3esZtANKeAnD3p+L5rNsApAmAtKvDwfGHnseZtwFIEwBpAiDt6PxPmQ1AmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBI+7b0BUzh9vf10peQ9OvH36UvYTQbgDQBkCYA0gRAmgBIEwBpAiBtF88BTlnb99Wnnlus5XoLz1dsANIEQJoASBMAaQIgTQCkCYA0AZAmANIEQJoASBMAaQIgTQCkCYC0xO8DbO3n2rd2vVtmA5AmANIEQJoASBMAaQIgTQCkJZ4DrOXv7GxN4XmEDUCaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApH1b+gLmcPv7eulLYKVsANIEQJoASBMAaQIgTQCkCYC048/vfx6WvghYig1AmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0q7u7m+OS18ELOHu/uZoA5AmANIEQNrV4fD/LLT0hcCcHmfeBiBNAKQ9BeAYRMXzWbcBSHsRgC3A3r2ecRuAtDcB2ALs1Xuz/e4GEAF789FMOwKR9mEAtgB78dksf7oBRMDWnZrhk0cgEbBVQ2Z30GcAEbA1Q2d28IdgEbAV58zqWd8CiYC1O3dGz/4aVASs1Vdmc9Qw+x8mWYMxN+VRD8JsA5Y2dgYnG2DbgDlNdfOd/A4uBC5p6lPHRY8wYmAKlzxqz3qGFwRDzPnZ8h9hUq2ME0ZUlAAAAABJRU5ErkJggg==">
+  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADdklEQVR4nO3dy1XbUBRAUZuVCqCbpLVkBK2FbpIWyCALFn/LSNbv7D2PrcE9us8WkONhRj+//3mY8/3Yprv7m+Nc73XRNzLwTOGSQUz+woaeS5o6hslezOAzp6lCGP0iBp8ljQ3hasw/NvwsbewMfqkeg88afWUbnL0BDD9r9ZXZPCsAw8/anTujgwMw/GzFObM6KADDz9YMndmTARh+tmrI7H4agOFn607N8IcBGH724rNZHvUgDLbu3QDc/dmbj2b6TQCGn716b7YdgUh7EYC7P3v3esZtANKeAnD3p+L5rNsApAmAtKvDwfGHnseZtwFIEwBpAiDt6PxPmQ1AmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBI+7b0BUzh9vf10peQ9OvH36UvYTQbgDQBkCYA0gRAmgBIEwBpAiBtF88BTlnb99Wnnlus5XoLz1dsANIEQJoASBMAaQIgTQCkCYA0AZAmANIEQJoASBMAaQIgTQCkCYC0xO8DbO3n2rd2vVtmA5AmANIEQJoASBMAaQIgTQCkJZ4DrOXv7GxN4XmEDUCaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApAmANAGQJgDSBECaAEgTAGkCIE0ApH1b+gLmcPv7eulLYKVsANIEQJoASBMAaQIgTQCkCYC048/vfx6WvghYig1AmgBIEwBpAiBNAKQJgDQBkCYA0gRAmgBIEwBpAiBNAKQJgDQBkCYA0q7u7m+OS18ELOHu/uZoA5AmANIEQNrV4fD/LLT0hcCcHmfeBiBNAKQ9BeAYRMXzWbcBSHsRgC3A3r2ecRuAtDcB2ALs1Xuz/e4GEAF789FMOwKR9mEAtgB78dksf7oBRMDWnZrhk0cgEbBVQ2Z30GcAEbA1Q2d28IdgEbAV58zqWd8CiYC1O3dGz/4aVASs1Vdmc9Qw+x8mWYMxN+VRD8JsA5Y2dgYnG2DbgDlNdfOd/A4uBC5p6lPHRY8wYmAKlzxqz3qGFwRDzPnZ8h9hUq2ME0ZUlAAAAABJRU5ErkJggg==">
   <title>Inventory Stock & Operations Tracker</title>
   <style>
     :root {
@@ -395,6 +395,7 @@
       #inventory-table td[data-label="Actions"] > div { grid-template-columns: 1fr; }
     }
   </style>
+<base target="_blank">
 <base target="_blank">
 </head>
 <body>
@@ -1118,8 +1119,15 @@
       <div style="text-align:center; margin-top:12px; font-size:12px; color:var(--text-tertiary);">
         <span id="forgot-link" style="cursor:pointer; color:var(--accent-blue); font-weight:600;">Forgot your password?</span>
         <div id="forgot-note" style="display:none; margin-top:8px; text-align:left; background:var(--bg); border:1px solid var(--border-divider); border-radius:8px; padding:10px 12px; line-height:1.6;">
-          <strong>Staff:</strong> contact your admin \u2014 they open <em>\ud83d\udc64 Users</em>, tap <em>Reset PW</em> on your account, and give you the new password.<br><br>
-          <strong>Admin:</strong> open Firebase Console \u2192 Realtime Database \u2192 <em>users</em> \u2192 delete your own username entry. Then sign up again with the same username \u2014 you are made admin automatically, even if staff accounts still exist.
+          <strong>Staff — forgot password:</strong> enter your username above, then tap <em>Request code</em>. Your admin gets an instant notification and <strong>WhatsApps you a 6-digit code</strong> (valid 10 minutes) to type below.
+          <button class="btn btn-sm" id="req-reset-btn" style="width:100%; margin-top:6px; padding:9px;">📲 Request reset code from admin</button>
+          <div id="reset-code-area" style="display:none; margin-top:8px;">
+            <input type="text" id="rst-code" placeholder="6-digit code from admin" inputmode="numeric" autocomplete="off" style="width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:15px; font-family:ui-monospace,monospace; box-sizing:border-box; text-align:center; letter-spacing:3px;">
+            <input type="password" id="rst-newpw" placeholder="New password (min 4 characters)" autocomplete="new-password" style="width:100%; margin-top:6px; padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text); font-size:15px; box-sizing:border-box;">
+            <button class="btn btn-sm btn-primary" id="rst-go" style="width:100%; margin-top:6px; padding:9px;">Reset my password</button>
+          </div><br><br>
+          <strong>Forgot your username?</strong> Ask your admin — it is listed in <em>👤 Users</em>.<br><br>
+          <strong>Admin recovery:</strong> Firebase Console → Realtime Database → <em>users</em> → delete your own username entry, then sign up again with the same username — you are made admin automatically, even if staff accounts still exist.
         </div>
       </div>
     </div>
@@ -1510,6 +1518,42 @@
       document.getElementById('main-app').style.display = 'none';
       setAuthMode('signin');
     }
+    // Staff requests a reset code; admin sees it in Users and WhatsApps it over
+    on('req-reset-btn', 'click', async () => {
+      const username = document.getElementById('login-user').value.trim();
+      if (!username) { loginMsg('Enter your username in the box above first.', true); return; }
+      const key = username.toLowerCase();
+      let rec;
+      try { rec = (await db.ref('users/' + key).get()).val(); }
+      catch (e) { loginMsg('Could not reach the database.', true); return; }
+      if (!rec) { loginMsg('No account with that username.', true); return; }
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      await db.ref('users/' + key).update({ resetCode: code, resetExp: Date.now() + 10 * 60 * 1000 });
+      await db.ref('notifications/' + Date.now()).set({ type: 'reset', username: rec.username, date: new Date().toLocaleString('en-GB'), read: false });
+      loginMsg('Request sent! Your admin will WhatsApp you the 6-digit code.', false);
+      document.getElementById('reset-code-area').style.display = 'block';
+    });
+
+    on('rst-go', 'click', async () => {
+      const username = document.getElementById('login-user').value.trim();
+      const code = (document.getElementById('rst-code').value || '').trim();
+      const pw = document.getElementById('rst-newpw').value;
+      if (!username) { loginMsg('Enter your username in the box above.', true); return; }
+      const key = username.toLowerCase();
+      let rec;
+      try { rec = (await db.ref('users/' + key).get()).val(); }
+      catch (e) { loginMsg('Could not reach the database.', true); return; }
+      if (!rec || !rec.resetCode) { loginMsg('No reset code was requested for that username.', true); return; }
+      if (Date.now() > (rec.resetExp || 0)) { loginMsg('That code has expired \u2014 request a fresh one.', true); return; }
+      if (code !== rec.resetCode) { loginMsg('That code is not correct.', true); return; }
+      if (!pw || pw.length < 4) { loginMsg('Enter a new password (minimum 4 characters).', true); return; }
+      const salt = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const passHash = await sha256(salt + ':' + pw);
+      await db.ref('users/' + key).update({ salt, passHash, resetCode: null, resetExp: null });
+      loginMsg('Password reset! Sign in above with your new password.', false);
+      document.getElementById('reset-code-area').style.display = 'none';
+    });
+
     on('forgot-link', 'click', () => {
       const n = document.getElementById('forgot-note');
       n.style.display = n.style.display === 'none' ? 'block' : 'none';
@@ -1637,18 +1681,26 @@
 
     // Admin notifications for new account requests
     db.ref('notifications').on('value', snap => {
-      const unread = Object.values(snap.val() || {}).filter(n => !n.read && n.type === 'signup');
+      const allN = Object.values(snap.val() || {});
+      const unread = allN.filter(n => !n.read && n.type === 'signup');
+      const resets = allN.filter(n => !n.read && n.type === 'reset');
       const badge = document.getElementById('pending-badge');
       if (unread.length) {
         badge.style.display = 'inline-block';
         badge.textContent = unread.length;
         unread.forEach(n => {
-          if (!seenNotif[n.username + '|' + n.date]) {
-            seenNotif[n.username + '|' + n.date] = 1;
+          if (!seenNotif['s|' + n.username + '|' + n.date]) {
+            seenNotif['s|' + n.username + '|' + n.date] = 1;
             toast(`\ud83d\udc64 New account request: ${n.username}`, 'info');
           }
         });
       } else badge.style.display = 'none';
+      resets.forEach(n => {
+        if (!seenNotif['r|' + n.username + '|' + n.date]) {
+          seenNotif['r|' + n.username + '|' + n.date] = 1;
+          toast(`\ud83d\udcf2 ${n.username} requested a password reset \u2014 open \ud83d\udc64 Users for the code`, 'info');
+        }
+      });
     });
 
     // Admin: user management
@@ -1656,6 +1708,7 @@
       const users = Object.values((await db.ref('users').get()).val() || {});
       const pending = users.filter(u => u.status === 'pending');
       const active = users.filter(u => u.status === 'approved');
+      const resets = active.filter(u => u.resetCode && (u.resetExp || 0) > Date.now());
       const body = document.getElementById('users-body');
       const row = (u) => `
         <div class="order-item" style="padding:8px 0;">
@@ -1684,6 +1737,17 @@
         ${pending.length ? pending.map(row).join('') : '<div style="padding:8px 4px; font-size:13px; color:var(--positive);">\u2713 No pending requests</div>'}
         <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Active users (${active.length})</div>
         ${active.map(row).join('')}
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Password reset requests \u2014 WhatsApp the code (${resets.length})</div>
+        ${resets.length ? resets.map(u => `
+          <div class="order-item" style="padding:8px 0;">
+            <div class="order-item-info">
+              <div class="order-item-name" style="font-size:14px;">${escapeHtml(u.username)}</div>
+              <div class="order-item-meta">Code: <strong style="font-family:ui-monospace,monospace; font-size:16px; letter-spacing:2px;">${escapeHtml(u.resetCode)}</strong> \u00b7 valid ${Math.max(1, Math.ceil(((u.resetExp || 0) - Date.now()) / 60000))} more min</div>
+            </div>
+            <button class="btn btn-sm btn-primary" data-copycode="${escapeHtml(u.resetCode)}">Copy</button>
+            <button class="btn btn-sm" data-donereset="${escapeHtml(u.username)}">Done</button>
+          </div>`).join('')
+        : '<div style="padding:8px 4px; font-size:13px; color:var(--text-tertiary);">No pending reset requests.</div>'}
         <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-tertiary); padding:12px 0 4px; border-bottom:2px solid var(--border); margin-bottom:4px;">Recent sign-ins &amp; staff activity</div>
         ${(() => {
           const acts = auditLogs
@@ -1714,6 +1778,15 @@
         await db.ref('users/' + b.dataset.resetpw.toLowerCase()).update({ salt, passHash });
         toast(`Password for "${b.dataset.resetpw}" has been reset.`, 'success');
       }));
+      body.querySelectorAll('[data-copycode]').forEach(b => b.addEventListener('click', () => {
+        const c = b.dataset.copycode;
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(c).then(() => toast('Code copied \u2014 paste it into WhatsApp.', 'success'));
+        else prompt('Copy this code:', c);
+      }));
+      body.querySelectorAll('[data-donereset]').forEach(b => b.addEventListener('click', async () => {
+        await db.ref('users/' + b.dataset.donereset.toLowerCase()).update({ resetCode: null, resetExp: null });
+        renderUsersPanel();
+      }));
       body.querySelectorAll('[data-role]').forEach(sel => sel.addEventListener('change', async () => {
         await db.ref('users/' + sel.dataset.role.toLowerCase()).update({ role: sel.value });
         toast('Role updated.', 'success');
@@ -1732,6 +1805,9 @@
       renderUsersPanel();
     }
     on('users-btn', 'click', () => { renderUsersPanel(); document.getElementById('users-modal').classList.add('open'); });
+    db.ref('users').on('value', () => {
+      if (document.getElementById('users-modal').classList.contains('open')) renderUsersPanel();
+    });
 
     // Boot: restore session or show login
     (function initAuth() {
